@@ -3,6 +3,7 @@ import { AuditorCheck } from '../../types';
 import { StatusBadge } from './StatusBadge';
 import { AppWindowModal } from './AppWindowModal';
 import { exportElementToPdf } from '../../utils/pdfGenerator';
+import { useTheme } from '../../context/ThemeContext';
 import {
   FileText,
   Lock,
@@ -52,6 +53,7 @@ export const AuditBillModal: React.FC<AuditBillModalProps> = ({
   isAdminView = false,
   onAdminRevise,
 }) => {
+  const { currentTheme } = useTheme();
   const [currentAudit, setCurrentAudit] = useState<AuditorCheck>(audit);
   const [confirming, setConfirming] = useState(false);
   const [disputing, setDisputing] = useState(false);
@@ -801,12 +803,28 @@ export const AuditBillModal: React.FC<AuditBillModalProps> = ({
           </div>
 
           {/* Settlement Account & Dual-Ledger Settlement Box */}
-          <div className="bg-slate-900 text-white p-4 sm:p-5 rounded-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <h4 className="font-black text-sm text-purple-300 flex items-center gap-2">
+          <div
+            style={{
+              backgroundColor: currentTheme.surfaceDark,
+              borderColor: currentTheme.surfaceDarkBorder,
+            }}
+            className="text-white p-4 sm:p-5 rounded-2xl border space-y-4 shadow-xl"
+          >
+            <div
+              style={{ borderColor: currentTheme.surfaceDarkBorder }}
+              className="flex items-center justify-between border-b pb-2"
+            >
+              <h4 className="font-black text-sm flex items-center gap-2" style={{ color: currentTheme.menuItemText }}>
                 <span>Audit Settlement &amp; Limit Restoration Summary</span>
               </h4>
-              <span className="text-[10px] font-mono bg-purple-900/80 text-purple-200 px-2.5 py-0.5 rounded-full border border-purple-500/30">
+              <span
+                style={{
+                  backgroundColor: currentTheme.menuBg,
+                  borderColor: currentTheme.menuBorder,
+                  color: currentTheme.menuItemText,
+                }}
+                className="text-[10px] font-mono px-2.5 py-0.5 rounded-full border"
+              >
                 AUTOMATIC DUAL SETTLEMENT
               </span>
             </div>
@@ -814,7 +832,10 @@ export const AuditBillModal: React.FC<AuditBillModalProps> = ({
             {/* Top Grid: Wallet Deduction & Credit Limit Restoration */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Credit Limit Restoration Banner */}
-              <div className="bg-gradient-to-r from-teal-950 to-emerald-950 p-3.5 rounded-xl border border-teal-500/40 space-y-1">
+              <div
+                style={{ backgroundColor: currentTheme.menuBg, borderColor: currentTheme.menuBorder }}
+                className="p-3.5 rounded-xl border space-y-1"
+              >
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-teal-300">
                     Pantry Credit Limit Restored
@@ -832,7 +853,10 @@ export const AuditBillModal: React.FC<AuditBillModalProps> = ({
               </div>
 
               {/* Wallet Deduction Banner */}
-              <div className="bg-gradient-to-r from-rose-950 to-slate-900 p-3.5 rounded-xl border border-rose-500/40 space-y-1">
+              <div
+                style={{ backgroundColor: currentTheme.menuBg, borderColor: currentTheme.menuBorder }}
+                className="p-3.5 rounded-xl border space-y-1"
+              >
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-rose-300">
                     Prepaid Wallet Discrepancy
@@ -851,9 +875,15 @@ export const AuditBillModal: React.FC<AuditBillModalProps> = ({
             </div>
 
             {/* Dual Breakdown Bars: Wallet Settlement & Credit Limit Settlement */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-slate-800 text-xs">
+            <div
+              style={{ borderColor: currentTheme.surfaceDarkBorder }}
+              className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t text-xs"
+            >
               {/* Prepaid Wallet Breakdown */}
-              <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 space-y-2">
+              <div
+                style={{ backgroundColor: currentTheme.menuBg, borderColor: currentTheme.menuBorder }}
+                className="p-3 rounded-xl border space-y-2"
+              >
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-black text-rose-300 uppercase tracking-wider">
                     Prepaid Customer Wallet
@@ -883,7 +913,10 @@ export const AuditBillModal: React.FC<AuditBillModalProps> = ({
               </div>
 
               {/* Pantry Credit Limit Breakdown */}
-              <div className="bg-slate-800/80 p-3 rounded-xl border border-teal-900/50 space-y-2">
+              <div
+                style={{ backgroundColor: currentTheme.menuBg, borderColor: currentTheme.menuBorder }}
+                className="p-3 rounded-xl border space-y-2"
+              >
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-black text-teal-300 uppercase tracking-wider">
                     Pantry Credit Limit

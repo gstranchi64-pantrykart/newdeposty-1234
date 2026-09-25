@@ -10,6 +10,7 @@ import { AppWindowModal } from '../common/AppWindowModal';
 import { AuditorWorkPdfReport } from './AuditorWorkPdfReport';
 import { CreditLimitDetailModal, LimitMetricTab } from '../customer/CreditLimitDetailModal';
 import { getDeliveryDayCount } from '../../utils/dateTimeUtils';
+import { useTheme } from '../../context/ThemeContext';
 import {
   ClipboardCheck,
   Search,
@@ -52,6 +53,7 @@ import {
 
 export const AuditorPortal: React.FC = () => {
   const { user, auditor } = useAuth();
+  const { currentTheme } = useTheme();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [isInspectionMaximized, setIsInspectionMaximized] = useState(false);
@@ -966,14 +968,30 @@ export const AuditorPortal: React.FC = () => {
                   const closingAvailableLimit = Math.max(0, approvedLimit - effectiveUsedLimit);
 
                   return (
-                    <div className="bg-slate-900 text-white rounded-2xl p-3.5 sm:p-4 border border-slate-700 shadow-md space-y-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                    <div
+                      style={{
+                        backgroundColor: currentTheme.surfaceDark,
+                        borderColor: currentTheme.surfaceDarkBorder,
+                      }}
+                      className="text-white rounded-2xl p-3.5 sm:p-4 border shadow-md space-y-3"
+                    >
+                      <div
+                        style={{ borderColor: currentTheme.surfaceDarkBorder }}
+                        className="flex flex-wrap items-center justify-between gap-2 border-b pb-2"
+                      >
                         <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                          <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: currentTheme.primary }} />
                           <span className="text-xs font-black text-slate-200">
                             Revolving Credit Line &amp; Stock Value Live Breakdown
                           </span>
-                          <span className="text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800 px-2 py-0.5 rounded-full font-semibold">
+                          <span
+                            style={{
+                              backgroundColor: currentTheme.menuBg,
+                              borderColor: currentTheme.menuBorder,
+                              color: currentTheme.menuItemText,
+                            }}
+                            className="text-[10px] border px-2 py-0.5 rounded-full font-semibold"
+                          >
                             Click any box for item-wise list
                           </span>
                         </div>
@@ -987,7 +1005,11 @@ export const AuditorPortal: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setMetricModalTab('APPROVED')}
-                          className="bg-slate-800/80 hover:bg-slate-800 p-2.5 rounded-xl border border-slate-700 hover:border-purple-400 transition text-left cursor-pointer group"
+                          style={{
+                            backgroundColor: currentTheme.menuBg,
+                            borderColor: currentTheme.menuBorder,
+                          }}
+                          className="hover:opacity-95 p-2.5 rounded-xl border transition text-left cursor-pointer group"
                         >
                           <div className="text-[10px] text-purple-300 font-bold uppercase truncate flex items-center justify-between">
                             <span>1. Approved Limit</span>
@@ -1549,13 +1571,19 @@ export const AuditorPortal: React.FC = () => {
                         )}
 
                         {/* TOP SECTION: Full-Width Audit Settlement Summary */}
-                        <div className="bg-slate-900 rounded-xl p-4 text-white shadow-lg border border-slate-700/50 space-y-3">
+                        <div
+                          style={{
+                            backgroundColor: currentTheme.surfaceDark,
+                            borderColor: currentTheme.surfaceDarkBorder,
+                          }}
+                          className="rounded-xl p-4 text-white shadow-lg border space-y-3"
+                        >
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div className="flex items-center gap-2">
-                              <ClipboardCheck className="w-5 h-5 text-cyan-400" />
+                              <ClipboardCheck className="w-5 h-5" style={{ color: currentTheme.primary }} />
                               <div>
                                 <h3 className="text-sm font-bold tracking-tight">Audit Settlement Summary</h3>
-                                <p className="text-[10px] text-slate-400">Live doorstep reconciliation &amp; bill calculation</p>
+                                <p className="text-[10px] text-slate-300">Live doorstep reconciliation &amp; bill calculation</p>
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -1565,41 +1593,52 @@ export const AuditorPortal: React.FC = () => {
                                   setPdfReportAudit(revisingAudit || null);
                                   setShowPdfReportModal(true);
                                 }}
-                                className="px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-slate-900 rounded-lg text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                                style={{
+                                  backgroundColor: currentTheme.primary,
+                                  color: currentTheme.textOnPrimary,
+                                }}
+                                className="px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs hover:opacity-90"
                                 title="Download PDF of all data filled by auditor"
                               >
                                 <FileText className="w-3.5 h-3.5" />
                                 <span>Download PDF Report</span>
                               </button>
-                              <span className="text-[10px] font-mono bg-cyan-950 text-cyan-300 px-2 py-1 rounded-md border border-cyan-800">
+                              <span
+                                style={{
+                                  backgroundColor: currentTheme.menuBg,
+                                  borderColor: currentTheme.menuBorder,
+                                  color: currentTheme.menuItemText,
+                                }}
+                                className="text-[10px] font-mono px-2 py-1 rounded-md border"
+                              >
                                 Live Calculation
                               </span>
                             </div>
                           </div>
                           
                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-                            <div className="bg-slate-800/70 p-2.5 rounded-lg border border-slate-700">
-                              <p className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">Wallet Deduct</p>
+                            <div style={{ backgroundColor: currentTheme.menuBg, borderColor: currentTheme.menuBorder }} className="p-2.5 rounded-lg border">
+                              <p className="text-[10px] opacity-80 font-bold uppercase mb-0.5">Wallet Deduct</p>
                               <p className="text-lg font-black text-rose-400">₹{estimatedWalletDeduction}</p>
                             </div>
-                            <div className="bg-slate-800/70 p-2.5 rounded-lg border border-slate-700">
-                              <p className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">Limit Restore</p>
+                            <div style={{ backgroundColor: currentTheme.menuBg, borderColor: currentTheme.menuBorder }} className="p-2.5 rounded-lg border">
+                              <p className="text-[10px] opacity-80 font-bold uppercase mb-0.5">Limit Restore</p>
                               <p className="text-lg font-black text-emerald-400">₹{estimatedCreditRestore}</p>
                             </div>
-                            <div className="bg-slate-800/70 p-2.5 rounded-lg border border-slate-700">
-                              <p className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">Missing Qty</p>
+                            <div style={{ backgroundColor: currentTheme.menuBg, borderColor: currentTheme.menuBorder }} className="p-2.5 rounded-lg border">
+                              <p className="text-[10px] opacity-80 font-bold uppercase mb-0.5">Missing Qty</p>
                               <p className="text-base font-black text-amber-400">{missingCountTotal} Items</p>
                             </div>
-                            <div className="bg-slate-800/70 p-2.5 rounded-lg border border-slate-700">
-                              <p className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">Returns Qty</p>
+                            <div style={{ backgroundColor: currentTheme.menuBg, borderColor: currentTheme.menuBorder }} className="p-2.5 rounded-lg border">
+                              <p className="text-[10px] opacity-80 font-bold uppercase mb-0.5">Returns Qty</p>
                               <p className="text-base font-black text-orange-400">{returnCountTotal} Items</p>
                             </div>
-                            <div className="bg-slate-800/70 p-2.5 rounded-lg border border-slate-700">
-                              <p className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">Replacements</p>
+                            <div style={{ backgroundColor: currentTheme.menuBg, borderColor: currentTheme.menuBorder }} className="p-2.5 rounded-lg border">
+                              <p className="text-[10px] opacity-80 font-bold uppercase mb-0.5">Replacements</p>
                               <p className="text-base font-black text-indigo-400">{replacementCountTotal} Items</p>
                             </div>
-                            <div className="bg-slate-800/70 p-2.5 rounded-lg border border-slate-700">
-                              <p className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">Pantry Pay</p>
+                            <div style={{ backgroundColor: currentTheme.menuBg, borderColor: currentTheme.menuBorder }} className="p-2.5 rounded-lg border">
+                              <p className="text-[10px] opacity-80 font-bold uppercase mb-0.5">Pantry Pay</p>
                               <p className="text-base font-black text-cyan-400">{pantryPayCountTotal} Items</p>
                             </div>
                           </div>
@@ -2875,7 +2914,10 @@ export const AuditorPortal: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Left Column: Image with high quality */}
-            <div className="w-full md:w-1/2 bg-slate-900 flex items-center justify-center p-4 relative min-h-[300px]">
+            <div
+              style={{ backgroundColor: currentTheme.surfaceDark }}
+              className="w-full md:w-1/2 flex items-center justify-center p-4 relative min-h-[300px]"
+            >
               <ImageWithFallback 
                 src={zoomedImage.src} 
                 alt={zoomedImage.title} 
@@ -2884,7 +2926,12 @@ export const AuditorPortal: React.FC = () => {
               <button 
                 type="button"
                 onClick={() => setZoomedImage(null)}
-                className="absolute top-3 right-3 text-white bg-slate-800/80 hover:bg-slate-700/80 rounded-full p-1.5 transition border border-slate-700 cursor-pointer"
+                style={{
+                  backgroundColor: currentTheme.menuBg,
+                  borderColor: currentTheme.menuBorder,
+                  color: currentTheme.menuItemText,
+                }}
+                className="absolute top-3 right-3 rounded-full p-1.5 transition border cursor-pointer hover:opacity-80 shadow"
                 title="Close Image Modal"
               >
                 <X className="w-5 h-5" />

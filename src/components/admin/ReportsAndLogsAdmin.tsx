@@ -18,6 +18,8 @@ import { ApiIntegrationsSettings } from './ApiIntegrationsSettings';
 import { BatchDetailHistoryModal } from './BatchDetailHistoryModal';
 import { BarcodeDetailHistoryModal } from './BarcodeDetailHistoryModal';
 import { CustomerPantryLiveLedger } from './CustomerPantryLiveLedger';
+import { ThemeSelectorPanel } from './ThemeSelectorPanel';
+import { useTheme } from '../../context/ThemeContext';
 import {
   ResponsiveContainer,
   BarChart,
@@ -102,8 +104,9 @@ export const ReportsAndLogsAdmin: React.FC<ReportsAndLogsAdminProps> = ({ initia
   // Selected audit modal
   const [selectedAuditForView, setSelectedAuditForView] = useState<AuditorCheck | null>(null);
 
-  // Settings edit state
-  const [settingsSubTab, setSettingsSubTab] = useState<'api-integrations' | 'general'>('api-integrations');
+  // Theme & Settings edit state
+  const { currentTheme } = useTheme();
+  const [settingsSubTab, setSettingsSubTab] = useState<'themes' | 'api-integrations' | 'general'>('themes');
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsForm, setSettingsForm] = useState({
     defaultPantryLimit: 10000,
@@ -1060,28 +1063,54 @@ export const ReportsAndLogsAdmin: React.FC<ReportsAndLogsAdminProps> = ({ initia
       {activeReport === 'settings' && (
         <div className="space-y-6">
           {/* Sub-tab selection bar */}
-          <div className="flex items-center gap-3 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 max-w-md">
+          <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 max-w-xl">
             <button
-              onClick={() => setSettingsSubTab('api-integrations')}
+              onClick={() => setSettingsSubTab('themes')}
+              style={{
+                backgroundColor: settingsSubTab === 'themes' ? currentTheme.primary : undefined,
+                color: settingsSubTab === 'themes' ? currentTheme.textOnPrimary : undefined,
+              }}
               className={`flex-1 py-2 text-xs font-extrabold rounded-xl transition cursor-pointer text-center ${
-                settingsSubTab === 'api-integrations'
-                  ? 'bg-purple-600 text-white shadow-xs'
+                settingsSubTab === 'themes'
+                  ? 'shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              🔌 All API Settings &amp; Gateways
+              🎨 10 ERP Themes
+            </button>
+            <button
+              onClick={() => setSettingsSubTab('api-integrations')}
+              style={{
+                backgroundColor: settingsSubTab === 'api-integrations' ? currentTheme.primary : undefined,
+                color: settingsSubTab === 'api-integrations' ? currentTheme.textOnPrimary : undefined,
+              }}
+              className={`flex-1 py-2 text-xs font-extrabold rounded-xl transition cursor-pointer text-center ${
+                settingsSubTab === 'api-integrations'
+                  ? 'shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              🔌 All API Gateways
             </button>
             <button
               onClick={() => setSettingsSubTab('general')}
+              style={{
+                backgroundColor: settingsSubTab === 'general' ? currentTheme.primary : undefined,
+                color: settingsSubTab === 'general' ? currentTheme.textOnPrimary : undefined,
+              }}
               className={`flex-1 py-2 text-xs font-extrabold rounded-xl transition cursor-pointer text-center ${
                 settingsSubTab === 'general'
-                  ? 'bg-purple-600 text-white shadow-xs'
+                  ? 'shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               ⚙️ General Parameters
             </button>
           </div>
+
+          {settingsSubTab === 'themes' && (
+            <ThemeSelectorPanel />
+          )}
 
           {settingsSubTab === 'api-integrations' && settings && (
             <ApiIntegrationsSettings

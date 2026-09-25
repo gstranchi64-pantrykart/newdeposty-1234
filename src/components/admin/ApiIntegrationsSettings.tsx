@@ -39,7 +39,10 @@ import {
   Terminal,
   ExternalLink,
   Layers,
+  Palette,
 } from 'lucide-react';
+import { ThemeSelectorPanel } from './ThemeSelectorPanel';
+import { useTheme } from '../../context/ThemeContext';
 
 interface ApiIntegrationsSettingsProps {
   settings: AppSettings;
@@ -50,9 +53,10 @@ export const ApiIntegrationsSettings: React.FC<ApiIntegrationsSettingsProps> = (
   settings,
   onUpdateSettings,
 }) => {
+  const { currentTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<
-    'supabase' | 'payment' | 'sms' | 'whatsApp' | 'googleMaps' | 'aiGemini' | 'cloudStorage'
-  >('supabase');
+    'theme' | 'supabase' | 'payment' | 'sms' | 'whatsApp' | 'googleMaps' | 'aiGemini' | 'cloudStorage'
+  >('theme');
 
   // Initialize state with existing or fallback settings
   const [integrations, setIntegrations] = useState<SystemAPIIntegrations>(
@@ -461,6 +465,32 @@ export const ApiIntegrationsSettings: React.FC<ApiIntegrationsSettingsProps> = (
       {/* API Selector Navigation Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-slate-200">
         <button
+          onClick={() => setActiveTab('theme')}
+          style={{
+            backgroundColor: activeTab === 'theme' ? currentTheme.primary : undefined,
+            color: activeTab === 'theme' ? currentTheme.textOnPrimary : undefined,
+          }}
+          className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer shrink-0 flex items-center gap-2 ${
+            activeTab === 'theme'
+              ? 'shadow-md shadow-black/10'
+              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+          }`}
+        >
+          <Palette className="w-4 h-4" />
+          <span>🎨 ERP Themes (10 Types)</span>
+          <span
+            className="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold border"
+            style={{
+              backgroundColor: currentTheme.badgeBg,
+              color: currentTheme.badgeText,
+              borderColor: currentTheme.badgeBorder,
+            }}
+          >
+            ACTIVE
+          </span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('supabase')}
           className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer shrink-0 flex items-center gap-2 ${
             activeTab === 'supabase'
@@ -610,6 +640,11 @@ export const ApiIntegrationsSettings: React.FC<ApiIntegrationsSettingsProps> = (
 
       {/* Main Tab Details Card */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-6">
+        {/* 10 ERP THEMES */}
+        {activeTab === 'theme' && (
+          <ThemeSelectorPanel />
+        )}
+
         {/* 0. SUPABASE CLOUD DATABASE */}
         {activeTab === 'supabase' && (
           <div className="space-y-6">

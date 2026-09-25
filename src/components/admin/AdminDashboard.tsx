@@ -19,7 +19,9 @@ import {
   PlusCircle,
   TrendingUp,
   Bell,
+  Palette,
 } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
 
 interface AdminDashboardProps {
   summary?: DashboardSummary | null;
@@ -32,6 +34,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onNavigate,
   onRefresh,
 }) => {
+  const { currentTheme } = useTheme();
   const [localSummary, setLocalSummary] = useState<DashboardSummary | null>(propSummary || null);
   const [loading, setLoading] = useState(!propSummary);
 
@@ -126,6 +129,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           >
             <Truck className="w-4 h-4" />
             Delivery &amp; Auditor
+          </button>
+          <button
+            onClick={() => onNavigate('admin-reports', 'settings')}
+            style={{
+              backgroundColor: currentTheme.primary,
+              color: currentTheme.textOnPrimary,
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold shadow-xs transition cursor-pointer hover:opacity-95"
+            title="10 Ready-Made ERP Themes (Yellow, Blue, Green, Parrot)"
+          >
+            <Palette className="w-4 h-4" />
+            <span>Theme: {currentTheme.name.split('(')[0]}</span>
           </button>
           <button
             onClick={fetchSummary}

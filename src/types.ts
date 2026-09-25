@@ -751,6 +751,7 @@ export interface AppSettings {
   autoAssignDelivery: boolean;
   allowChildAccounts: boolean;
   maxChildAccountsPerCustomer: number;
+  activeThemeId?: string;
   apiIntegrations?: SystemAPIIntegrations;
 }
 

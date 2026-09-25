@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Order, ReplacementRequest, ReturnRequest, DeliveryBoy, AuditorReturnOrder } from '../../types';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { StatusBadge } from '../common/StatusBadge';
 import {
   Truck,
@@ -29,6 +30,7 @@ import { parseOrderDate, formatOrderDateTime, getOrderPreciseTimestamp } from '.
 
 export const DeliveryBoyPortal: React.FC = () => {
   const { user, deliveryBoy } = useAuth();
+  const { currentTheme } = useTheme();
   const [orders, setOrders] = useState<Order[]>([]);
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
   const [replacements, setReplacements] = useState<ReplacementRequest[]>([]);
@@ -269,18 +271,36 @@ export const DeliveryBoyPortal: React.FC = () => {
   return (
     <div className="w-full max-w-6xl mx-auto space-y-5 pb-16">
       {/* Header Profile Card */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl"></div>
+      <div
+        style={{
+          backgroundColor: currentTheme.surfaceDark,
+          borderColor: currentTheme.surfaceDarkBorder,
+        }}
+        className="border rounded-2xl p-5 text-white shadow-xl relative overflow-hidden"
+      >
+        <div
+          style={{ backgroundColor: currentTheme.primary }}
+          className="absolute right-0 top-0 w-32 h-32 opacity-10 rounded-full blur-2xl"
+        ></div>
         <div className="flex items-center gap-3 relative z-10">
-          <div className="w-12 h-12 rounded-xl bg-amber-500 text-slate-900 flex items-center justify-center font-black text-lg">
+          <div
+            style={{
+              backgroundColor: currentTheme.primary,
+              color: currentTheme.textOnPrimary,
+            }}
+            className="w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg shadow"
+          >
             {deliveryBoy?.fullName?.charAt(0) || 'D'}
           </div>
           <div>
-            <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+            <div
+              style={{ color: currentTheme.primary }}
+              className="text-[10px] font-bold uppercase tracking-wider"
+            >
               Logistics Fleet Partner
             </div>
             <h2 className="text-base font-bold text-white">{deliveryBoy?.fullName || user?.name}</h2>
-            <div className="text-[10px] text-slate-400 font-mono">
+            <div className="text-[10px] text-slate-300 font-mono">
               ID: {deliveryBoy?.id || 'DB-ACTIVE'} • Area: {deliveryBoy?.assignedArea || 'Ranchi'}
             </div>
           </div>

@@ -87,6 +87,7 @@ const getInitialSeeds = (): DatabaseSchema => {
     autoAssignDelivery: false,
     allowChildAccounts: true,
     maxChildAccountsPerCustomer: 3,
+    activeThemeId: 'yellow-amber',
     apiIntegrations: {
       payment: {
         mode: 'DEMO',

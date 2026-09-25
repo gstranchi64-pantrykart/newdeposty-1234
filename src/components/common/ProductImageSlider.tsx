@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Maximize2, Package, X } from 'lucide-react';
 import { ImageWithFallback } from './ImageWithFallback';
+import { useTheme } from '../../context/ThemeContext';
 
 export interface ProductImageSliderProps {
   images: string[] | [string, string, string, string];
@@ -38,6 +39,7 @@ export const ProductImageSlider: React.FC<ProductImageSliderProps> = ({
   badges,
   onImageClick,
 }) => {
+  const { currentTheme } = useTheme();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
 
@@ -190,31 +192,46 @@ export const ProductImageSlider: React.FC<ProductImageSliderProps> = ({
       {isZoomOpen && (
         <div
           onClick={() => setIsZoomOpen(false)}
-          className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative max-w-3xl w-full bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl p-4 flex flex-col"
+            style={{
+              backgroundColor: currentTheme.surfaceDark,
+              borderColor: currentTheme.surfaceDarkBorder,
+            }}
+            className="relative max-w-3xl w-full rounded-2xl overflow-hidden border shadow-2xl p-4 flex flex-col"
           >
             {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800 text-white">
+            <div
+              style={{ borderColor: currentTheme.surfaceDarkBorder }}
+              className="flex items-center justify-between pb-3 border-b text-white"
+            >
               <div>
-                <h4 className="font-bold text-sm">{alt}</h4>
-                <p className="text-xs text-slate-400">
+                <h4 className="font-bold text-sm" style={{ color: currentTheme.menuItemText }}>{alt}</h4>
+                <p className="text-xs opacity-80" style={{ color: currentTheme.menuItemSubtext }}>
                   {DEFAULT_ANGLE_LABELS[safeIndex] || `Image ${safeIndex + 1}`} • ({safeIndex + 1} of {total})
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsZoomOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center cursor-pointer transition"
+                style={{
+                  backgroundColor: currentTheme.menuBg,
+                  borderColor: currentTheme.menuBorder,
+                  color: currentTheme.menuItemText,
+                }}
+                className="w-8 h-8 rounded-full border flex items-center justify-center cursor-pointer transition hover:opacity-80"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Modal Image View */}
-            <div className="relative aspect-4/3 sm:aspect-16/10 w-full bg-black/40 rounded-xl overflow-hidden my-3 flex items-center justify-center">
+            <div
+              style={{ backgroundColor: currentTheme.menuBg }}
+              className="relative aspect-4/3 sm:aspect-16/10 w-full rounded-xl overflow-hidden my-3 flex items-center justify-center p-2 border border-black/10 shadow-inner"
+            >
               <img
                 src={currentImage}
                 alt={`${alt} - Full View`}
@@ -228,14 +245,14 @@ export const ProductImageSlider: React.FC<ProductImageSliderProps> = ({
                   <button
                     type="button"
                     onClick={handlePrev}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-900 flex items-center justify-center shadow-lg cursor-pointer"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 hover:bg-white text-slate-900 flex items-center justify-center shadow-lg cursor-pointer"
                   >
                     <ChevronLeft className="w-6 h-6" />
                   </button>
                   <button
                     type="button"
                     onClick={handleNext}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-900 flex items-center justify-center shadow-lg cursor-pointer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 hover:bg-white text-slate-900 flex items-center justify-center shadow-lg cursor-pointer"
                   >
                     <ChevronRight className="w-6 h-6" />
                   </button>
@@ -244,18 +261,29 @@ export const ProductImageSlider: React.FC<ProductImageSliderProps> = ({
             </div>
 
             {/* Modal 4 Thumbnails */}
-            <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-800">
+            <div
+              style={{ borderColor: currentTheme.surfaceDarkBorder }}
+              className="grid grid-cols-4 gap-2 pt-2 border-t"
+            >
               {validImages.slice(0, 4).map((img, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={(e) => handleSelect(idx, e)}
-                  className={`relative h-16 rounded-lg overflow-hidden border-2 transition cursor-pointer bg-slate-800 ${
-                    safeIndex === idx ? 'border-emerald-400 ring-2 ring-emerald-400/30' : 'border-slate-700 hover:border-slate-500'
-                  }`}
+                  style={{
+                    backgroundColor: currentTheme.menuBg,
+                    borderColor: safeIndex === idx ? currentTheme.primary : currentTheme.menuBorder,
+                  }}
+                  className="relative h-16 rounded-lg overflow-hidden border-2 transition cursor-pointer p-0.5"
                 >
-                  <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  <span className="absolute bottom-1 left-1 bg-slate-950/80 text-white text-[9px] px-1 rounded font-bold">
+                  <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover rounded" referrerPolicy="no-referrer" />
+                  <span
+                    style={{
+                      backgroundColor: currentTheme.primary,
+                      color: currentTheme.textOnPrimary,
+                    }}
+                    className="absolute bottom-1 left-1 text-[9px] px-1 rounded font-bold"
+                  >
                     {idx + 1}
                   </span>
                 </button>

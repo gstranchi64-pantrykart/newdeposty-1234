@@ -32,10 +32,13 @@ import {
   Receipt,
   BarChart3,
   Sparkles,
+  Palette,
 } from 'lucide-react';
 import { UserRole, hasPantryAccess } from '../../types';
 import { api } from '../../services/api';
 import { AdminNotificationCenter } from '../admin/AdminNotificationCenter';
+import { useTheme } from '../../context/ThemeContext';
+import { ThemeSettingsModal } from '../admin/ThemeSettingsModal';
 
 export interface NavbarProps {
   currentTab?: string;
@@ -65,8 +68,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   onDataRefresh,
 }) => {
   const { user, customer, role, logout, quickLoginAsRole } = useAuth();
+  const { currentTheme } = useTheme();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showThemeModal, setShowThemeModal] = useState(false);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [resetting, setResetting] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
@@ -202,7 +207,16 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isAnalyticsActive = ['admin-dashboard', 'admin-reports', 'admin-notifications'].includes(active);
 
   return (
-    <header className="bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-50 shadow-lg w-full" ref={navRef}>
+    <header
+      style={{
+        backgroundColor: currentTheme.headerBg,
+        borderBottom: `1px solid ${currentTheme.headerBorder}`,
+        borderTop: `3.5px solid ${currentTheme.primary}`,
+        color: currentTheme.headerText,
+      }}
+      className="sticky top-0 z-50 shadow-lg w-full transition-colors duration-200"
+      ref={navRef}
+    >
       <div className="w-full px-3 sm:px-5 lg:px-6 xl:px-8">
         <div className="flex items-center justify-between h-16 gap-3">
           
@@ -222,17 +236,30 @@ export const Navbar: React.FC<NavbarProps> = ({
               }
               className="flex items-center gap-2.5 text-left group cursor-pointer focus:outline-hidden"
             >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
-                <ShoppingBag className="w-5 h-5 text-white" />
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md group-hover:scale-105 transition-transform"
+                style={{
+                  background: currentTheme.gradient,
+                  color: currentTheme.textOnPrimary,
+                }}
+              >
+                <ShoppingBag className="w-5 h-5" />
               </div>
               <div>
                 <div className="font-bold text-base tracking-tight text-white flex items-center gap-1.5">
                   <span>PantryMaster ERP</span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 font-semibold">
+                  <span
+                    className="text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold border"
+                    style={{
+                      backgroundColor: currentTheme.badgeBg,
+                      color: currentTheme.badgeText,
+                      borderColor: currentTheme.badgeBorder,
+                    }}
+                  >
                     v2.5
                   </span>
                 </div>
-                <div className="text-[11px] text-slate-400 -mt-0.5 font-medium">
+                <div className="text-[11px] text-slate-300 -mt-0.5 font-medium">
                   Batch Master • Pantry Card • Auditor Platform
                 </div>
               </div>
@@ -246,13 +273,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* 1. Dashboard Quick Link */}
               <button
                 onClick={() => handleNav('admin-dashboard')}
+                style={{
+                  backgroundColor: active === 'admin-dashboard' ? currentTheme.navActiveBg : undefined,
+                  color: active === 'admin-dashboard' ? currentTheme.navActiveText : '#e2e8f0',
+                }}
                 className={`px-3 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                   active === 'admin-dashboard'
-                    ? 'bg-emerald-600 text-white shadow-md font-bold'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    ? 'shadow-md font-bold'
+                    : 'hover:opacity-90'
                 }`}
               >
-                <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                <TrendingUp className="w-3.5 h-3.5" style={{ color: active === 'admin-dashboard' ? currentTheme.navActiveText : currentTheme.primary }} />
                 <span>Dashboard</span>
               </button>
 
@@ -260,64 +291,86 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="relative">
                 <button
                   onClick={() => setActiveDropdown(activeDropdown === 'stock' ? null : 'stock')}
-                  className={`px-3 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                    isStockActive || activeDropdown === 'stock'
-                      ? 'bg-slate-800 text-emerald-300 border border-emerald-500/30 shadow-xs font-bold'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }`}
+                  style={{
+                    backgroundColor: isStockActive || activeDropdown === 'stock' ? currentTheme.menuBg : undefined,
+                    borderColor: isStockActive || activeDropdown === 'stock' ? currentTheme.primary : 'transparent',
+                    color: isStockActive || activeDropdown === 'stock' ? currentTheme.menuItemText : '#e2e8f0',
+                  }}
+                  className="px-3 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 border hover:opacity-90 font-semibold"
                 >
-                  <Boxes className="w-4 h-4 text-emerald-400" />
+                  <Boxes className="w-4 h-4" style={{ color: currentTheme.primary }} />
                   <span>Stock &amp; Batch Master</span>
                   <ChevronDown className={`w-3.5 h-3.5 transition-transform ${activeDropdown === 'stock' ? 'rotate-180' : ''}`} />
                 </button>
 
                 {activeDropdown === 'stock' && (
-                  <div className="absolute left-0 mt-2 w-72 bg-slate-800 rounded-xl shadow-2xl border border-slate-700 p-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-                    <div className="px-3 py-1.5 border-b border-slate-700/60 mb-1 text-[10px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1">
+                  <div
+                    style={{
+                      backgroundColor: currentTheme.menuBg,
+                      borderColor: currentTheme.menuBorder,
+                    }}
+                    className="absolute left-0 mt-2 w-72 rounded-xl shadow-2xl border p-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+                  >
+                    <div
+                      style={{
+                        borderColor: currentTheme.menuBorder,
+                        color: currentTheme.primary,
+                      }}
+                      className="px-3 py-1.5 border-b mb-1 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"
+                    >
                       <Package className="w-3 h-3" />
                       Inventory &amp; Warehousing
                     </div>
 
                     <button
                       onClick={() => handleNav('admin-inventory')}
-                      className={`w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer transition ${
-                        active === 'admin-inventory' ? 'bg-emerald-950/60 border border-emerald-700/50 text-emerald-200' : 'hover:bg-slate-700/70 text-slate-200'
-                      }`}
+                      style={{
+                        backgroundColor: active === 'admin-inventory' ? currentTheme.menuHover : undefined,
+                        borderColor: active === 'admin-inventory' ? currentTheme.primary : 'transparent',
+                      }}
+                      className="w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer transition theme-menu-hover text-slate-200 border"
                     >
-                      <Boxes className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <Boxes className="w-4 h-4 shrink-0 mt-0.5" style={{ color: currentTheme.primary }} />
                       <div>
                         <div className="font-semibold text-xs text-white">Batch Inventory Master</div>
-                        <div className="text-[10px] text-slate-400">View live batch stock, expiry alerts, low stock</div>
+                        <div className="text-[10px] text-slate-300">View live batch stock, expiry alerts, low stock</div>
                       </div>
                     </button>
 
                     <button
                       onClick={() => handleNav('admin-stockin')}
-                      className={`w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer transition ${
-                        active === 'admin-stockin' ? 'bg-emerald-950/60 border border-emerald-700/50 text-emerald-200' : 'hover:bg-slate-700/70 text-slate-200'
-                      }`}
+                      style={{
+                        backgroundColor: active === 'admin-stockin' ? currentTheme.menuHover : undefined,
+                        borderColor: active === 'admin-stockin' ? currentTheme.primary : 'transparent',
+                      }}
+                      className="w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer transition theme-menu-hover text-slate-200 border"
                     >
-                      <Package className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <Package className="w-4 h-4 shrink-0 mt-0.5" style={{ color: currentTheme.primary }} />
                       <div>
                         <div className="font-semibold text-xs text-white">Stock In &amp; New Batch Entry</div>
-                        <div className="text-[10px] text-slate-400">Purchase inward, batch no, cost &amp; selling price</div>
+                        <div className="text-[10px] text-slate-300">Purchase inward, batch no, cost &amp; selling price</div>
                       </div>
                     </button>
 
                     <button
                       onClick={() => handleNav('admin-catalog')}
-                      className={`w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer transition ${
-                        active === 'admin-catalog' ? 'bg-emerald-950/60 border border-emerald-700/50 text-emerald-200' : 'hover:bg-slate-700/70 text-slate-200'
-                      }`}
+                      style={{
+                        backgroundColor: active === 'admin-catalog' ? currentTheme.menuHover : undefined,
+                        borderColor: active === 'admin-catalog' ? currentTheme.primary : 'transparent',
+                      }}
+                      className="w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer transition theme-menu-hover text-slate-200 border"
                     >
-                      <Layers className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <Layers className="w-4 h-4 shrink-0 mt-0.5" style={{ color: currentTheme.primary }} />
                       <div>
                         <div className="font-semibold text-xs text-white">Master Product Catalog</div>
-                        <div className="text-[10px] text-slate-400">Manage products, 4-image sliders, barcode IDs</div>
+                        <div className="text-[10px] text-slate-300">Manage products, 4-image sliders, barcode IDs</div>
                       </div>
                     </button>
 
-                    <div className="border-t border-slate-700/60 mt-1 pt-1.5 px-2 flex items-center justify-between text-[11px] text-slate-400">
+                    <div
+                      style={{ borderColor: currentTheme.menuBorder }}
+                      className="border-t mt-1 pt-1.5 px-2 flex items-center justify-between text-[11px] text-slate-300"
+                    >
                       <button
                         onClick={() => handleNav('admin-inventory', undefined, 'LOW_STOCK')}
                         className="hover:text-amber-300 flex items-center gap-1 cursor-pointer"
@@ -341,56 +394,71 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="relative">
                 <button
                   onClick={() => setActiveDropdown(activeDropdown === 'orders' ? null : 'orders')}
-                  className={`px-3 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                    isOrdersActive || activeDropdown === 'orders'
-                      ? 'bg-slate-800 text-amber-300 border border-amber-500/30 shadow-xs font-bold'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }`}
+                  style={{
+                    backgroundColor: isOrdersActive || activeDropdown === 'orders' ? currentTheme.menuBg : undefined,
+                    borderColor: isOrdersActive || activeDropdown === 'orders' ? currentTheme.primary : 'transparent',
+                    color: isOrdersActive || activeDropdown === 'orders' ? currentTheme.menuItemText : '#e2e8f0',
+                  }}
+                  className="px-3 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 border hover:opacity-90 font-semibold"
                 >
-                  <ShoppingCart className="w-4 h-4 text-amber-400" />
+                  <ShoppingCart className="w-4 h-4" style={{ color: currentTheme.primary }} />
                   <span>Orders &amp; Dispatch</span>
                   <ChevronDown className={`w-3.5 h-3.5 transition-transform ${activeDropdown === 'orders' ? 'rotate-180' : ''}`} />
                 </button>
 
                 {activeDropdown === 'orders' && (
-                  <div className="absolute left-0 mt-2 w-72 bg-slate-800 rounded-xl shadow-2xl border border-slate-700 p-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-                    <div className="px-3 py-1.5 border-b border-slate-700/60 mb-1 text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1">
+                  <div
+                    style={{
+                      backgroundColor: currentTheme.menuBg,
+                      borderColor: currentTheme.menuBorder,
+                    }}
+                    className="absolute left-0 mt-2 w-72 rounded-xl shadow-2xl border p-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+                  >
+                    <div
+                      style={{
+                        borderColor: currentTheme.menuBorder,
+                        color: currentTheme.primary,
+                      }}
+                      className="px-3 py-1.5 border-b mb-1 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"
+                    >
                       <Truck className="w-3 h-3" />
                       Fulfillment &amp; Packing Operations
                     </div>
 
                     <button
                       onClick={() => handleNav('admin-orders', 'orders')}
-                      className={`w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer transition ${
-                        active === 'admin-orders' ? 'bg-amber-950/60 border border-amber-700/50 text-amber-200' : 'hover:bg-slate-700/70 text-slate-200'
-                      }`}
+                      style={{
+                        backgroundColor: active === 'admin-orders' ? currentTheme.menuHover : undefined,
+                        borderColor: active === 'admin-orders' ? currentTheme.primary : 'transparent',
+                      }}
+                      className="w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer transition theme-menu-hover text-slate-200 border"
                     >
-                      <ShoppingCart className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      <ShoppingCart className="w-4 h-4 shrink-0 mt-0.5" style={{ color: currentTheme.primary }} />
                       <div>
                         <div className="font-semibold text-xs text-white">All Orders &amp; COD Processing</div>
-                        <div className="text-[10px] text-slate-400">Order approval, packing status, delivery assign</div>
+                        <div className="text-[10px] text-slate-300">Order approval, packing status, delivery assign</div>
                       </div>
                     </button>
 
                     <button
                       onClick={() => handleNav('admin-orders', 'packing')}
-                      className="w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer hover:bg-slate-700/70 text-slate-200 transition"
+                      className="w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer theme-menu-hover text-slate-200 transition"
                     >
-                      <FileText className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      <FileText className="w-4 h-4 shrink-0 mt-0.5" style={{ color: currentTheme.primary }} />
                       <div>
                         <div className="font-semibold text-xs text-white">Warehouse Packing Slips</div>
-                        <div className="text-[10px] text-slate-400">Batch-wise item picking slip &amp; barcodes</div>
+                        <div className="text-[10px] text-slate-300">Batch-wise item picking slip &amp; barcodes</div>
                       </div>
                     </button>
 
                     <button
                       onClick={() => handleNav('admin-delivery-staff', 'delivery')}
-                      className="w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer hover:bg-slate-700/70 text-slate-200 transition"
+                      className="w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer theme-menu-hover text-slate-200 transition"
                     >
-                      <Truck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      <Truck className="w-4 h-4 shrink-0 mt-0.5" style={{ color: currentTheme.primary }} />
                       <div>
                         <div className="font-semibold text-xs text-white">Delivery Boy Management</div>
-                        <div className="text-[10px] text-slate-400">Assign delivery boys, COD cash reconciliation</div>
+                        <div className="text-[10px] text-slate-300">Assign delivery boys, COD cash reconciliation</div>
                       </div>
                     </button>
                   </div>
@@ -401,58 +469,75 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="relative">
                 <button
                   onClick={() => setActiveDropdown(activeDropdown === 'pantry' ? null : 'pantry')}
-                  className={`px-3 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                    isPantryActive || activeDropdown === 'pantry'
-                      ? 'bg-slate-800 text-purple-300 border border-purple-500/30 shadow-xs font-bold'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }`}
+                  style={{
+                    backgroundColor: isPantryActive || activeDropdown === 'pantry' ? currentTheme.menuBg : undefined,
+                    borderColor: isPantryActive || activeDropdown === 'pantry' ? currentTheme.primary : 'transparent',
+                    color: isPantryActive || activeDropdown === 'pantry' ? currentTheme.menuItemText : '#e2e8f0',
+                  }}
+                  className="px-3 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 border hover:opacity-90 font-semibold"
                 >
-                  <CreditCard className="w-4 h-4 text-purple-400" />
+                  <CreditCard className="w-4 h-4" style={{ color: currentTheme.primary }} />
                   <span>Pantry &amp; Finance</span>
                   <ChevronDown className={`w-3.5 h-3.5 transition-transform ${activeDropdown === 'pantry' ? 'rotate-180' : ''}`} />
                 </button>
 
                 {activeDropdown === 'pantry' && (
-                  <div className="absolute left-0 mt-2 w-72 bg-slate-800 rounded-xl shadow-2xl border border-slate-700 p-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-                    <div className="px-3 py-1.5 border-b border-slate-700/60 mb-1 text-[10px] font-bold uppercase tracking-wider text-purple-400 flex items-center gap-1">
+                  <div
+                    style={{
+                      backgroundColor: currentTheme.menuBg,
+                      borderColor: currentTheme.menuBorder,
+                    }}
+                    className="absolute left-0 mt-2 w-72 rounded-xl shadow-2xl border p-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+                  >
+                    <div
+                      style={{
+                        borderColor: currentTheme.menuBorder,
+                        color: currentTheme.primary,
+                      }}
+                      className="px-3 py-1.5 border-b mb-1 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"
+                    >
                       <CreditCard className="w-3 h-3" />
                       Pantry Credit &amp; Customer Ledger
                     </div>
 
                     <button
                       onClick={() => handleNav('admin-pantry-payments')}
-                      className={`w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer transition ${
-                        active === 'admin-pantry-payments' ? 'bg-purple-950/60 border border-purple-700/50 text-purple-200' : 'hover:bg-slate-700/70 text-slate-200'
-                      }`}
+                      style={{
+                        backgroundColor: active === 'admin-pantry-payments' ? currentTheme.menuHover : undefined,
+                        borderColor: active === 'admin-pantry-payments' ? currentTheme.primary : 'transparent',
+                      }}
+                      className="w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer transition theme-menu-hover text-slate-200 border"
                     >
-                      <Receipt className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                      <Receipt className="w-4 h-4 shrink-0 mt-0.5" style={{ color: currentTheme.primary }} />
                       <div>
                         <div className="font-semibold text-xs text-white">Pantry Pay &amp; Bills Admin</div>
-                        <div className="text-[10px] text-slate-400">Approve payments, verify auditor collections</div>
+                        <div className="text-[10px] text-slate-300">Approve payments, verify auditor collections</div>
                       </div>
                     </button>
 
                     <button
                       onClick={() => handleNav('admin-customers')}
-                      className={`w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer transition ${
-                        active === 'admin-customers' ? 'bg-purple-950/60 border border-purple-700/50 text-purple-200' : 'hover:bg-slate-700/70 text-slate-200'
-                      }`}
+                      style={{
+                        backgroundColor: active === 'admin-customers' ? currentTheme.menuHover : undefined,
+                        borderColor: active === 'admin-customers' ? currentTheme.primary : 'transparent',
+                      }}
+                      className="w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer transition theme-menu-hover text-slate-200 border"
                     >
-                      <Users className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                      <Users className="w-4 h-4 shrink-0 mt-0.5" style={{ color: currentTheme.primary }} />
                       <div>
                         <div className="font-semibold text-xs text-white">Customers 360° Management</div>
-                        <div className="text-[10px] text-slate-400">Credit limits, pantry card activation &amp; details</div>
+                        <div className="text-[10px] text-slate-300">Credit limits, pantry card activation &amp; details</div>
                       </div>
                     </button>
 
                     <button
                       onClick={() => handleNav('admin-customers', 'holdings')}
-                      className="w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer hover:bg-slate-700/70 text-slate-200 transition"
+                      className="w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer theme-menu-hover text-slate-200 transition"
                     >
-                      <Wallet className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                      <Wallet className="w-4 h-4 shrink-0 mt-0.5" style={{ color: currentTheme.primary }} />
                       <div>
                         <div className="font-semibold text-xs text-white">Customer Live Pantry Holdings</div>
-                        <div className="text-[10px] text-slate-400">Monitor live items stock in customer pantries</div>
+                        <div className="text-[10px] text-slate-300">Monitor live items stock in customer pantries</div>
                       </div>
                     </button>
                   </div>
@@ -463,56 +548,71 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="relative">
                 <button
                   onClick={() => setActiveDropdown(activeDropdown === 'auditor' ? null : 'auditor')}
-                  className={`px-3 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                    isAuditorActive || activeDropdown === 'auditor'
-                      ? 'bg-slate-800 text-cyan-300 border border-cyan-500/30 shadow-xs font-bold'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }`}
+                  style={{
+                    backgroundColor: isAuditorActive || activeDropdown === 'auditor' ? currentTheme.menuBg : undefined,
+                    borderColor: isAuditorActive || activeDropdown === 'auditor' ? currentTheme.primary : 'transparent',
+                    color: isAuditorActive || activeDropdown === 'auditor' ? currentTheme.menuItemText : '#e2e8f0',
+                  }}
+                  className="px-3 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 border hover:opacity-90 font-semibold"
                 >
-                  <ClipboardCheck className="w-4 h-4 text-cyan-400" />
+                  <ClipboardCheck className="w-4 h-4" style={{ color: currentTheme.primary }} />
                   <span>Auditor &amp; Verification</span>
                   <ChevronDown className={`w-3.5 h-3.5 transition-transform ${activeDropdown === 'auditor' ? 'rotate-180' : ''}`} />
                 </button>
 
                 {activeDropdown === 'auditor' && (
-                  <div className="absolute left-0 mt-2 w-72 bg-slate-800 rounded-xl shadow-2xl border border-slate-700 p-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-                    <div className="px-3 py-1.5 border-b border-slate-700/60 mb-1 text-[10px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1">
+                  <div
+                    style={{
+                      backgroundColor: currentTheme.menuBg,
+                      borderColor: currentTheme.menuBorder,
+                    }}
+                    className="absolute left-0 mt-2 w-72 rounded-xl shadow-2xl border p-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+                  >
+                    <div
+                      style={{
+                        borderColor: currentTheme.menuBorder,
+                        color: currentTheme.primary,
+                      }}
+                      className="px-3 py-1.5 border-b mb-1 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"
+                    >
                       <ShieldCheck className="w-3 h-3" />
                       Auditor Field Operations &amp; Verification
                     </div>
 
                     <button
                       onClick={() => handleNav('admin-auditor-returns')}
-                      className={`w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer transition ${
-                        active === 'admin-auditor-returns' ? 'bg-cyan-950/60 border border-cyan-700/50 text-cyan-200' : 'hover:bg-slate-700/70 text-slate-200'
-                      }`}
+                      style={{
+                        backgroundColor: active === 'admin-auditor-returns' ? currentTheme.menuHover : undefined,
+                        borderColor: active === 'admin-auditor-returns' ? currentTheme.primary : 'transparent',
+                      }}
+                      className="w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer transition theme-menu-hover text-slate-200 border"
                     >
-                      <RotateCcw className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+                      <RotateCcw className="w-4 h-4 shrink-0 mt-0.5" style={{ color: currentTheme.primary }} />
                       <div>
                         <div className="font-semibold text-xs text-white">Auditor Return Claims Admin</div>
-                        <div className="text-[10px] text-slate-400">Review &amp; approve auditor return requests</div>
+                        <div className="text-[10px] text-slate-300">Review &amp; approve auditor return requests</div>
                       </div>
                     </button>
 
                     <button
                       onClick={() => handleNav('admin-delivery-staff', 'auditors')}
-                      className="w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer hover:bg-slate-700/70 text-slate-200 transition"
+                      className="w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer theme-menu-hover text-slate-200 transition"
                     >
-                      <UserCheck className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+                      <UserCheck className="w-4 h-4 shrink-0 mt-0.5" style={{ color: currentTheme.primary }} />
                       <div>
                         <div className="font-semibold text-xs text-white">Auditor Staff Management</div>
-                        <div className="text-[10px] text-slate-400">Manage field auditors &amp; assigned routes</div>
+                        <div className="text-[10px] text-slate-300">Manage field auditors &amp; assigned routes</div>
                       </div>
                     </button>
 
                     <button
                       onClick={() => handleNav('admin-reports', 'audits')}
-                      className="w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer hover:bg-slate-700/70 text-slate-200 transition"
+                      className="w-full p-2.5 rounded-lg text-left flex items-start gap-2.5 cursor-pointer theme-menu-hover text-slate-200 transition"
                     >
-                      <FileCheck className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+                      <FileCheck className="w-4 h-4 shrink-0 mt-0.5" style={{ color: currentTheme.primary }} />
                       <div>
                         <div className="font-semibold text-xs text-white">Physical Pantry Audit Logs</div>
-                        <div className="text-[10px] text-slate-400">Field visit reports, discrepancies &amp; proofs</div>
+                        <div className="text-[10px] text-slate-300">Field visit reports, discrepancies &amp; proofs</div>
                       </div>
                     </button>
                   </div>
@@ -522,14 +622,34 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* 6. Reports & Logs */}
               <button
                 onClick={() => handleNav('admin-reports')}
-                className={`px-3 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                  active === 'admin-reports'
-                    ? 'bg-slate-800 text-white shadow-xs font-bold border border-slate-700'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`}
+                style={{
+                  backgroundColor: active === 'admin-reports' ? currentTheme.menuBg : undefined,
+                  borderColor: active === 'admin-reports' ? currentTheme.primary : 'transparent',
+                  color: active === 'admin-reports' ? currentTheme.menuItemText : '#e2e8f0',
+                }}
+                className="px-3 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 border hover:opacity-90 font-semibold"
               >
-                <BarChart3 className="w-3.5 h-3.5 text-blue-400" />
+                <BarChart3 className="w-3.5 h-3.5" style={{ color: currentTheme.primary }} />
                 <span>Reports &amp; Logs</span>
+              </button>
+
+              {/* 7. Themes & Settings */}
+              <button
+                onClick={() => setShowThemeModal(true)}
+                style={{
+                  backgroundColor: currentTheme.menuBg,
+                  borderColor: currentTheme.menuBorder,
+                  color: currentTheme.menuItemText,
+                }}
+                className="px-3 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 border hover:opacity-90 shadow-xs"
+                title="10 Ready-made ERP Themes & Colors"
+              >
+                <Palette className="w-3.5 h-3.5" style={{ color: currentTheme.primary }} />
+                <span>Themes</span>
+                <span
+                  className="w-2 h-2 rounded-full shadow-3xs"
+                  style={{ backgroundColor: currentTheme.primary }}
+                />
               </button>
 
             </div>
@@ -540,13 +660,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="hidden md:flex items-center gap-2 text-xs font-semibold">
               <button
                 onClick={() => handleNav('customer-store')}
-                className={`px-3.5 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                  active === 'customer-store'
-                    ? 'bg-emerald-600 text-white shadow-sm font-bold'
-                    : 'text-slate-300 hover:bg-slate-800'
-                }`}
+                style={{
+                  backgroundColor: active === 'customer-store' ? currentTheme.navActiveBg : currentTheme.menuBg,
+                  color: active === 'customer-store' ? currentTheme.navActiveText : '#ffffff',
+                  borderColor: currentTheme.menuBorder,
+                }}
+                className="px-3.5 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 border shadow-sm font-bold"
               >
-                <ShoppingBag className="w-4 h-4 text-emerald-400" />
+                <ShoppingBag className="w-4 h-4" style={{ color: active === 'customer-store' ? currentTheme.navActiveText : currentTheme.primary }} />
                 <span>Shop Fresh Groceries</span>
               </button>
 
@@ -554,20 +675,33 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="relative">
                 <button
                   onClick={() => setActiveDropdown(activeDropdown === 'customerProfile' ? null : 'customerProfile')}
-                  className={`px-3 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                    activeDropdown === 'customerProfile'
-                      ? 'bg-slate-800 text-emerald-300 border border-emerald-500/40 font-bold'
-                      : 'bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700/80'
-                  }`}
+                  style={{
+                    backgroundColor: activeDropdown === 'customerProfile' ? currentTheme.menuBg : currentTheme.headerBg,
+                    borderColor: activeDropdown === 'customerProfile' ? currentTheme.primary : currentTheme.menuBorder,
+                    color: activeDropdown === 'customerProfile' ? currentTheme.menuItemText : '#e2e8f0',
+                  }}
+                  className="px-3 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 border font-bold"
                 >
-                  <UserIcon className="w-4 h-4 text-emerald-400" />
+                  <UserIcon className="w-4 h-4" style={{ color: currentTheme.primary }} />
                   <span>My Profile &amp; Passbook All Menu</span>
                   <ChevronDown className={`w-3.5 h-3.5 transition-transform ${activeDropdown === 'customerProfile' ? 'rotate-180' : ''}`} />
                 </button>
 
                 {activeDropdown === 'customerProfile' && (
-                  <div className="absolute left-0 mt-2 w-72 bg-slate-800 rounded-xl shadow-2xl border border-slate-700 p-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-                    <div className="px-3 py-1.5 border-b border-slate-700/60 mb-1 text-[10px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1">
+                  <div
+                    style={{
+                      backgroundColor: currentTheme.menuBg,
+                      borderColor: currentTheme.menuBorder,
+                    }}
+                    className="absolute left-0 mt-2 w-72 rounded-xl shadow-2xl border p-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+                  >
+                    <div
+                      style={{
+                        borderColor: currentTheme.menuBorder,
+                        color: currentTheme.primary,
+                      }}
+                      className="px-3 py-1.5 border-b mb-1 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"
+                    >
                       <UserIcon className="w-3 h-3" />
                       Customer Account Sections
                     </div>
@@ -577,9 +711,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                         setActiveDropdown(null);
                         if (onOpenProfile) onOpenProfile('profile');
                       }}
-                      className="w-full p-2 rounded-lg text-left flex items-center gap-2.5 cursor-pointer hover:bg-slate-700 text-slate-200 transition"
+                      className="w-full p-2 rounded-lg text-left flex items-center gap-2.5 cursor-pointer theme-menu-hover text-slate-200 transition"
                     >
-                      <UserIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <UserIcon className="w-4 h-4 shrink-0" style={{ color: currentTheme.primary }} />
                       <div>
                         <div className="font-semibold text-xs text-white">Profile &amp; Personal Info</div>
                         <div className="text-[10px] text-slate-400">Name, photo, mobile &amp; alternate contacts</div>
@@ -591,9 +725,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                         setActiveDropdown(null);
                         if (onOpenProfile) onOpenProfile('wallet');
                       }}
-                      className="w-full p-2 rounded-lg text-left flex items-center gap-2.5 cursor-pointer hover:bg-slate-700 text-slate-200 transition"
+                      className="w-full p-2 rounded-lg text-left flex items-center gap-2.5 cursor-pointer theme-menu-hover text-slate-200 transition"
                     >
-                      <Wallet className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <Wallet className="w-4 h-4 shrink-0" style={{ color: currentTheme.primary }} />
                       <div>
                         <div className="font-semibold text-xs text-white">Wallet History &amp; Passbook</div>
                         <div className="text-[10px] text-slate-400">View closing balances, recharges &amp; debits</div>
@@ -606,9 +740,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setActiveDropdown(null);
                           if (onOpenProfile) onOpenProfile('ledger');
                         }}
-                        className="w-full p-2 rounded-lg text-left flex items-center gap-2.5 cursor-pointer hover:bg-slate-700 text-slate-200 transition"
+                        className="w-full p-2 rounded-lg text-left flex items-center gap-2.5 cursor-pointer theme-menu-hover text-slate-200 transition"
                       >
-                        <CreditCard className="w-4 h-4 text-purple-400 shrink-0" />
+                        <CreditCard className="w-4 h-4 shrink-0" style={{ color: currentTheme.primary }} />
                         <div>
                           <div className="font-semibold text-xs text-white">Pantry Limit &amp; Credit Ledger</div>
                           <div className="text-[10px] text-slate-400">Available limit, bill pay &amp; adjustments</div>
@@ -621,9 +755,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                         setActiveDropdown(null);
                         if (onOpenProfile) onOpenProfile('audits');
                       }}
-                      className="w-full p-2 rounded-lg text-left flex items-center gap-2.5 cursor-pointer hover:bg-slate-700 text-slate-200 transition"
+                      className="w-full p-2 rounded-lg text-left flex items-center gap-2.5 cursor-pointer theme-menu-hover text-slate-200 transition"
                     >
-                      <ShieldCheck className="w-4 h-4 text-cyan-400 shrink-0" />
+                      <ShieldCheck className="w-4 h-4 shrink-0" style={{ color: currentTheme.primary }} />
                       <div>
                         <div className="font-semibold text-xs text-white">Audits &amp; Verification Permissions</div>
                         <div className="text-[10px] text-slate-400">Approve field visits &amp; lock audit bills</div>
@@ -635,9 +769,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                         setActiveDropdown(null);
                         if (onOpenProfile) onOpenProfile('address');
                       }}
-                      className="w-full p-2 rounded-lg text-left flex items-center gap-2.5 cursor-pointer hover:bg-slate-700 text-slate-200 transition"
+                      className="w-full p-2 rounded-lg text-left flex items-center gap-2.5 cursor-pointer theme-menu-hover text-slate-200 transition"
                     >
-                      <MapPin className="w-4 h-4 text-blue-400 shrink-0" />
+                      <MapPin className="w-4 h-4 shrink-0" style={{ color: currentTheme.primary }} />
                       <div>
                         <div className="font-semibold text-xs text-white">Delivery Address</div>
                         <div className="text-[10px] text-slate-400">House address, landmark &amp; pin code</div>
@@ -650,9 +784,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setActiveDropdown(null);
                           if (onOpenProfile) onOpenProfile('stock');
                         }}
-                        className="w-full p-2 rounded-lg text-left flex items-center gap-2.5 cursor-pointer hover:bg-slate-700 text-slate-200 transition"
+                        className="w-full p-2 rounded-lg text-left flex items-center gap-2.5 cursor-pointer theme-menu-hover text-slate-200 transition"
                       >
-                        <Boxes className="w-4 h-4 text-purple-400 shrink-0" />
+                        <Boxes className="w-4 h-4 shrink-0" style={{ color: currentTheme.primary }} />
                         <div>
                           <div className="font-semibold text-xs text-white">Live Pantry Stock</div>
                           <div className="text-[10px] text-slate-400">Items inside your home pantry &amp; used history</div>
@@ -665,9 +799,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                         setActiveDropdown(null);
                         if (onOpenProfile) onOpenProfile('history');
                       }}
-                      className="w-full p-2 rounded-lg text-left flex items-center gap-2.5 cursor-pointer hover:bg-slate-700 text-slate-200 transition"
+                      className="w-full p-2 rounded-lg text-left flex items-center gap-2.5 cursor-pointer theme-menu-hover text-slate-200 transition"
                     >
-                      <ShoppingBag className="w-4 h-4 text-amber-400 shrink-0" />
+                      <ShoppingBag className="w-4 h-4 shrink-0" style={{ color: currentTheme.primary }} />
                       <div>
                         <div className="font-semibold text-xs text-white">COD Order History</div>
                         <div className="text-[10px] text-slate-400">View cash-on-delivery order receipts</div>
@@ -680,9 +814,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setActiveDropdown(null);
                           if (onOpenProfile) onOpenProfile('pantry');
                         }}
-                        className="w-full p-2 rounded-lg text-left flex items-center gap-2.5 cursor-pointer hover:bg-slate-700 text-slate-200 transition"
+                        className="w-full p-2 rounded-lg text-left flex items-center gap-2.5 cursor-pointer theme-menu-hover text-slate-200 transition"
                       >
-                        <CreditCard className="w-4 h-4 text-indigo-400 shrink-0" />
+                        <CreditCard className="w-4 h-4 shrink-0" style={{ color: currentTheme.primary }} />
                         <div>
                           <div className="font-semibold text-xs text-white">Pantry Orders History</div>
                           <div className="text-[10px] text-slate-400">View pantry credit delivery orders</div>
@@ -695,9 +829,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                         setActiveDropdown(null);
                         if (onOpenProfile) onOpenProfile('tracking');
                       }}
-                      className="w-full p-2 rounded-lg text-left flex items-center gap-2.5 cursor-pointer hover:bg-slate-700 text-slate-200 transition"
+                      className="w-full p-2 rounded-lg text-left flex items-center gap-2.5 cursor-pointer theme-menu-hover text-slate-200 transition"
                     >
-                      <Truck className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <Truck className="w-4 h-4 shrink-0" style={{ color: currentTheme.primary }} />
                       <div>
                         <div className="font-semibold text-xs text-white">Live Order Tracking</div>
                         <div className="text-[10px] text-slate-400">Delivery status, step lock &amp; ETA</div>
@@ -782,10 +916,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setShowRoleMenu(false);
                     setActiveDropdown(null);
                   }}
-                  className="relative p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white transition cursor-pointer flex items-center gap-1 shadow-xs"
+                  style={{
+                    backgroundColor: currentTheme.menuBg,
+                    borderColor: currentTheme.menuBorder,
+                    color: currentTheme.menuItemText,
+                  }}
+                  className="relative p-2 rounded-xl border transition cursor-pointer flex items-center gap-1 shadow-xs theme-menu-hover"
                   title="ERP Notification Center"
                 >
-                  <Bell className="w-4 h-4 text-purple-400" />
+                  <Bell className="w-4 h-4" style={{ color: currentTheme.primary }} />
                   {unreadNotificationCount > 0 && (
                     <span className="px-1.5 py-0.2 bg-rose-600 text-white text-[10px] font-black rounded-full animate-pulse shadow-xs">
                       {unreadNotificationCount}
@@ -808,6 +947,25 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
 
+            {/* Quick 1-Click Theme Switcher Button */}
+            <button
+              onClick={() => setShowThemeModal(true)}
+              style={{
+                backgroundColor: currentTheme.menuBg,
+                borderColor: currentTheme.menuBorder,
+                color: currentTheme.menuItemText,
+              }}
+              className="relative px-2.5 py-1.5 rounded-xl border transition cursor-pointer flex items-center gap-1.5 shadow-xs theme-menu-hover"
+              title="10 Ready-Made ERP Themes (Yellow, Blue, Green, Parrot)"
+            >
+              <Palette className="w-4 h-4" style={{ color: currentTheme.primary }} />
+              <span className="hidden sm:inline text-xs font-bold" style={{ color: currentTheme.menuItemText }}>Theme</span>
+              <span
+                className="w-2.5 h-2.5 rounded-full border border-black/30 shadow-3xs"
+                style={{ backgroundColor: currentTheme.primary }}
+              />
+            </button>
+
             {/* Role Switcher Button */}
             <div className="relative">
               <button
@@ -826,15 +984,33 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
 
               {showRoleMenu && (
-                <div className="absolute right-0 mt-2 w-64 bg-slate-800 rounded-xl shadow-2xl border border-slate-700 py-2 z-50 animate-in fade-in duration-150">
-                  <div className="px-3 py-1.5 border-b border-slate-700/80 text-[11px] text-slate-400">
+                <div
+                  style={{
+                    backgroundColor: currentTheme.menuBg,
+                    borderColor: currentTheme.menuBorder,
+                  }}
+                  className="absolute right-0 mt-2 w-64 rounded-xl shadow-2xl border py-2 z-50 animate-in fade-in duration-150"
+                >
+                  <div
+                    style={{
+                      borderColor: currentTheme.menuBorder,
+                      color: currentTheme.menuItemSubtext,
+                    }}
+                    className="px-3 py-1.5 border-b text-[11px]"
+                  >
                     Active User: <strong className="text-white font-semibold">{user?.name}</strong>
-                    <div className="text-[10px] text-slate-500 font-mono mt-0.5">+91 {user?.mobile}</div>
+                    <div className="text-[10px] opacity-80 font-mono mt-0.5">+91 {user?.mobile}</div>
                   </div>
 
                   {role === 'CUSTOMER' && (
-                    <div className="border-b border-slate-700/80 py-2 px-2 bg-slate-900/40">
-                      <div className="px-1.5 py-1 text-[10px] uppercase font-bold text-emerald-400">
+                    <div
+                      style={{
+                        backgroundColor: currentTheme.surfaceDark,
+                        borderColor: currentTheme.menuBorder,
+                      }}
+                      className="border-b py-2 px-2"
+                    >
+                      <div className="px-1.5 py-1 text-[10px] uppercase font-bold" style={{ color: currentTheme.primary }}>
                         Customer Quick Links
                       </div>
                       <button
@@ -842,9 +1018,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setShowRoleMenu(false);
                           if (onOpenProfile) onOpenProfile('profile');
                         }}
-                        className="w-full text-left px-2 py-1.5 rounded text-xs font-semibold text-white hover:bg-slate-700 flex items-center gap-2 cursor-pointer transition"
+                        style={{ color: currentTheme.menuItemText }}
+                        className="w-full text-left px-2 py-1.5 rounded text-xs font-semibold hover:opacity-90 flex items-center gap-2 cursor-pointer transition theme-menu-hover"
                       >
-                        <UserIcon className="w-4 h-4 text-emerald-400" />
+                        <UserIcon className="w-4 h-4" style={{ color: currentTheme.primary }} />
                         <span>Edit Profile</span>
                       </button>
                       <button
@@ -852,9 +1029,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setShowRoleMenu(false);
                           if (onOpenProfile) onOpenProfile('wallet');
                         }}
-                        className="w-full text-left px-2 py-1.5 rounded text-xs font-semibold text-white hover:bg-slate-700 flex items-center gap-2 cursor-pointer transition"
+                        style={{ color: currentTheme.menuItemText }}
+                        className="w-full text-left px-2 py-1.5 rounded text-xs font-semibold hover:opacity-90 flex items-center gap-2 cursor-pointer transition theme-menu-hover"
                       >
-                        <Wallet className="w-4 h-4 text-emerald-400" />
+                        <Wallet className="w-4 h-4" style={{ color: currentTheme.primary }} />
                         <span>Wallet &amp; Passbook</span>
                       </button>
                       {hasPantryAccess(customer) && (
@@ -863,16 +1041,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                             setShowRoleMenu(false);
                             if (onOpenProfile) onOpenProfile('ledger');
                           }}
-                          className="w-full text-left px-2 py-1.5 rounded text-xs font-semibold text-white hover:bg-slate-700 flex items-center gap-2 cursor-pointer transition"
+                          style={{ color: currentTheme.menuItemText }}
+                          className="w-full text-left px-2 py-1.5 rounded text-xs font-semibold hover:opacity-90 flex items-center gap-2 cursor-pointer transition theme-menu-hover"
                         >
-                          <CreditCard className="w-4 h-4 text-purple-400" />
+                          <CreditCard className="w-4 h-4" style={{ color: currentTheme.primary }} />
                           <span>Pantry Card Ledger</span>
                         </button>
                       )}
                     </div>
                   )}
 
-                  <div className="px-3 py-1 text-[10px] uppercase font-bold text-slate-400 mt-1">
+                  <div
+                    style={{ color: currentTheme.menuItemSubtext }}
+                    className="px-3 py-1 text-[10px] uppercase font-bold mt-1"
+                  >
                     Quick Role Switcher
                   </div>
 
@@ -883,12 +1065,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                       setShowRoleMenu(false);
                       handleNav('admin-dashboard');
                     }}
-                    className="w-full px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-700 flex items-center gap-2 cursor-pointer transition"
+                    style={{ color: currentTheme.menuItemText }}
+                    className="w-full px-3 py-2 text-left text-xs flex items-center gap-2 cursor-pointer transition theme-menu-hover"
                   >
                     <ShieldCheck className="w-4 h-4 text-purple-400 shrink-0" />
                     <div>
                       <div className="font-semibold text-white">ADMIN Dashboard</div>
-                      <div className="text-[10px] text-slate-400">Full ERP &amp; stock management</div>
+                      <div className="text-[10px] opacity-80">Full ERP &amp; stock management</div>
                     </div>
                   </button>
 
@@ -899,12 +1082,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                       setShowRoleMenu(false);
                       handleNav('customer-store');
                     }}
-                    className="w-full px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-700 flex items-center gap-2 cursor-pointer transition"
+                    style={{ color: currentTheme.menuItemText }}
+                    className="w-full px-3 py-2 text-left text-xs flex items-center gap-2 cursor-pointer transition theme-menu-hover"
                   >
                     <ShoppingBag className="w-4 h-4 text-emerald-400 shrink-0" />
                     <div>
                       <div className="font-semibold text-white">CUSTOMER Portal</div>
-                      <div className="text-[10px] text-slate-400">Pantry Card, Quick COD</div>
+                      <div className="text-[10px] opacity-80">Pantry Card, Quick COD</div>
                     </div>
                   </button>
 
@@ -915,12 +1099,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                       setShowRoleMenu(false);
                       handleNav('delivery-portal');
                     }}
-                    className="w-full px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-700 flex items-center gap-2 cursor-pointer transition"
+                    style={{ color: currentTheme.menuItemText }}
+                    className="w-full px-3 py-2 text-left text-xs flex items-center gap-2 cursor-pointer transition theme-menu-hover"
                   >
                     <Truck className="w-4 h-4 text-amber-400 shrink-0" />
                     <div>
                       <div className="font-semibold text-white">DELIVERY BOY</div>
-                      <div className="text-[10px] text-slate-400">Dispatches &amp; COD collection</div>
+                      <div className="text-[10px] opacity-80">Dispatches &amp; COD collection</div>
                     </div>
                   </button>
 
@@ -931,20 +1116,51 @@ export const Navbar: React.FC<NavbarProps> = ({
                       setShowRoleMenu(false);
                       handleNav('auditor-portal');
                     }}
-                    className="w-full px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-700 flex items-center gap-2 cursor-pointer transition"
+                    style={{ color: currentTheme.menuItemText }}
+                    className="w-full px-3 py-2 text-left text-xs flex items-center gap-2 cursor-pointer transition theme-menu-hover"
                   >
                     <ClipboardCheck className="w-4 h-4 text-cyan-400 shrink-0" />
                     <div>
                       <div className="font-semibold text-white">AUDITOR Portal</div>
-                      <div className="text-[10px] text-slate-400">Field visit &amp; pantry audits</div>
+                      <div className="text-[10px] opacity-80">Field visit &amp; pantry audits</div>
                     </div>
                   </button>
 
-                  <div className="border-t border-slate-700 mt-2 pt-1 px-2">
+                  {/* Change ERP Theme Option */}
+                  <button
+                    onClick={() => {
+                      setShowRoleMenu(false);
+                      setShowThemeModal(true);
+                    }}
+                    style={{ color: currentTheme.menuItemText }}
+                    className="w-full px-3 py-2 text-left text-xs flex items-center gap-2 cursor-pointer transition theme-menu-hover"
+                  >
+                    <Palette className="w-4 h-4 shrink-0" style={{ color: currentTheme.primary }} />
+                    <div>
+                      <div className="font-semibold text-white flex items-center gap-1.5">
+                        <span>ERP Themes &amp; Colors</span>
+                        <span
+                          className="px-1.5 py-0.2 rounded text-[9px] font-black"
+                          style={{
+                            backgroundColor: currentTheme.badgeBg,
+                            color: currentTheme.badgeText,
+                          }}
+                        >
+                          10 Presets
+                        </span>
+                      </div>
+                      <div className="text-[10px] opacity-80">1-Click switch (Yellow, Blue, Green, Parrot)</div>
+                    </div>
+                  </button>
+
+                  <div
+                    style={{ borderColor: currentTheme.menuBorder }}
+                    className="border-t mt-2 pt-1 px-2"
+                  >
                     <button
                       onClick={handleResetSeeds}
                       disabled={resetting}
-                      className="w-full text-left px-2 py-1.5 rounded text-[11px] text-amber-300 hover:bg-amber-950/40 flex items-center gap-1.5 cursor-pointer transition"
+                      className="w-full text-left px-2 py-1.5 rounded text-[11px] text-amber-300 hover:opacity-90 flex items-center gap-1.5 cursor-pointer transition theme-menu-hover"
                     >
                       <RotateCcw className={`w-3 h-3 ${resetting ? 'animate-spin' : ''}`} />
                       Reset Test Seeds Data
@@ -954,7 +1170,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         setShowRoleMenu(false);
                         logout();
                       }}
-                      className="w-full text-left px-2 py-1.5 rounded text-[11px] text-rose-300 hover:bg-rose-950/40 flex items-center gap-1.5 cursor-pointer transition"
+                      className="w-full text-left px-2 py-1.5 rounded text-[11px] text-rose-300 hover:opacity-90 flex items-center gap-1.5 cursor-pointer transition theme-menu-hover"
                     >
                       <LogOut className="w-3 h-3" />
                       Logout / Change Number
@@ -967,7 +1183,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Mobile Hamburger Toggle */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition cursor-pointer"
+              style={{
+                backgroundColor: currentTheme.menuBg,
+                borderColor: currentTheme.menuBorder,
+                color: currentTheme.menuItemText,
+              }}
+              className="lg:hidden p-2 rounded-xl border transition cursor-pointer theme-menu-hover"
               aria-label="Toggle Navigation Menu"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -979,52 +1200,77 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden bg-slate-900 border-b border-slate-800 px-4 py-4 space-y-3 animate-in slide-in-from-top duration-200">
+        <div
+          style={{
+            backgroundColor: currentTheme.headerBg,
+            borderBottom: `2px solid ${currentTheme.headerBorder}`,
+          }}
+          className="lg:hidden px-4 py-4 space-y-3 animate-in slide-in-from-top duration-200"
+        >
           {role === 'ADMIN' && (
             <div className="space-y-2 text-sm">
               <button
                 onClick={() => handleNav('admin-dashboard')}
-                className={`w-full p-2.5 rounded-xl text-left font-bold flex items-center gap-2 ${
-                  active === 'admin-dashboard' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-200'
-                }`}
+                style={{
+                  backgroundColor: active === 'admin-dashboard' ? currentTheme.navActiveBg : currentTheme.menuBg,
+                  color: active === 'admin-dashboard' ? currentTheme.navActiveText : currentTheme.menuItemText,
+                  borderColor: currentTheme.menuBorder,
+                }}
+                className="w-full p-2.5 rounded-xl text-left font-bold flex items-center gap-2 border shadow-sm transition theme-menu-hover cursor-pointer"
               >
-                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                <TrendingUp className="w-4 h-4" style={{ color: active === 'admin-dashboard' ? currentTheme.navActiveText : currentTheme.primary }} />
                 <span>Executive Dashboard</span>
               </button>
 
               {/* Stock Accordion */}
-              <div className="bg-slate-800/80 rounded-xl border border-slate-700 overflow-hidden">
+              <div
+                style={{
+                  backgroundColor: currentTheme.menuBg,
+                  borderColor: currentTheme.menuBorder,
+                }}
+                className="rounded-xl border overflow-hidden"
+              >
                 <button
                   onClick={() => setMobileExpandedSection(mobileExpandedSection === 'stock' ? null : 'stock')}
-                  className="w-full p-3 font-semibold text-emerald-300 flex items-center justify-between"
+                  style={{ color: currentTheme.menuItemText }}
+                  className="w-full p-3 font-semibold flex items-center justify-between cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
-                    <Boxes className="w-4 h-4 text-emerald-400" />
+                    <Boxes className="w-4 h-4" style={{ color: currentTheme.primary }} />
                     Stock &amp; Batch Master
                   </span>
                   <ChevronDown className={`w-4 h-4 transition-transform ${mobileExpandedSection === 'stock' ? 'rotate-180' : ''}`} />
                 </button>
                 {mobileExpandedSection === 'stock' && (
-                  <div className="bg-slate-900/80 p-2 space-y-1 border-t border-slate-700/60 text-xs">
+                  <div
+                    style={{
+                      backgroundColor: currentTheme.surfaceDark,
+                      borderColor: currentTheme.menuBorder,
+                    }}
+                    className="p-2 space-y-1 border-t text-xs"
+                  >
                     <button
                       onClick={() => handleNav('admin-inventory')}
-                      className="w-full text-left p-2 rounded text-slate-200 hover:bg-slate-800 flex items-center gap-2"
+                      style={{ color: currentTheme.menuItemText }}
+                      className="w-full text-left p-2 rounded flex items-center gap-2 theme-menu-hover cursor-pointer transition"
                     >
-                      <Boxes className="w-3.5 h-3.5 text-emerald-400" />
+                      <Boxes className="w-3.5 h-3.5" style={{ color: currentTheme.primary }} />
                       <span>Batch Inventory Master</span>
                     </button>
                     <button
                       onClick={() => handleNav('admin-stockin')}
-                      className="w-full text-left p-2 rounded text-slate-200 hover:bg-slate-800 flex items-center gap-2"
+                      style={{ color: currentTheme.menuItemText }}
+                      className="w-full text-left p-2 rounded flex items-center gap-2 theme-menu-hover cursor-pointer transition"
                     >
-                      <Package className="w-3.5 h-3.5 text-emerald-400" />
+                      <Package className="w-3.5 h-3.5" style={{ color: currentTheme.primary }} />
                       <span>Stock In &amp; Batch Registration</span>
                     </button>
                     <button
                       onClick={() => handleNav('admin-catalog')}
-                      className="w-full text-left p-2 rounded text-slate-200 hover:bg-slate-800 flex items-center gap-2"
+                      style={{ color: currentTheme.menuItemText }}
+                      className="w-full text-left p-2 rounded flex items-center gap-2 theme-menu-hover cursor-pointer transition"
                     >
-                      <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                      <Layers className="w-3.5 h-3.5" style={{ color: currentTheme.primary }} />
                       <span>Master Product Catalog</span>
                     </button>
                   </div>
@@ -1032,38 +1278,54 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
 
               {/* Orders Accordion */}
-              <div className="bg-slate-800/80 rounded-xl border border-slate-700 overflow-hidden">
+              <div
+                style={{
+                  backgroundColor: currentTheme.menuBg,
+                  borderColor: currentTheme.menuBorder,
+                }}
+                className="rounded-xl border overflow-hidden"
+              >
                 <button
                   onClick={() => setMobileExpandedSection(mobileExpandedSection === 'orders' ? null : 'orders')}
-                  className="w-full p-3 font-semibold text-amber-300 flex items-center justify-between"
+                  style={{ color: currentTheme.menuItemText }}
+                  className="w-full p-3 font-semibold flex items-center justify-between cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
-                    <ShoppingCart className="w-4 h-4 text-amber-400" />
+                    <ShoppingCart className="w-4 h-4" style={{ color: currentTheme.primary }} />
                     Orders &amp; Dispatch
                   </span>
                   <ChevronDown className={`w-4 h-4 transition-transform ${mobileExpandedSection === 'orders' ? 'rotate-180' : ''}`} />
                 </button>
                 {mobileExpandedSection === 'orders' && (
-                  <div className="bg-slate-900/80 p-2 space-y-1 border-t border-slate-700/60 text-xs">
+                  <div
+                    style={{
+                      backgroundColor: currentTheme.surfaceDark,
+                      borderColor: currentTheme.menuBorder,
+                    }}
+                    className="p-2 space-y-1 border-t text-xs"
+                  >
                     <button
                       onClick={() => handleNav('admin-orders', 'orders')}
-                      className="w-full text-left p-2 rounded text-slate-200 hover:bg-slate-800 flex items-center gap-2"
+                      style={{ color: currentTheme.menuItemText }}
+                      className="w-full text-left p-2 rounded flex items-center gap-2 theme-menu-hover cursor-pointer transition"
                     >
-                      <ShoppingCart className="w-3.5 h-3.5 text-amber-400" />
+                      <ShoppingCart className="w-3.5 h-3.5" style={{ color: currentTheme.primary }} />
                       <span>All Orders &amp; Dispatch</span>
                     </button>
                     <button
                       onClick={() => handleNav('admin-orders', 'packing')}
-                      className="w-full text-left p-2 rounded text-slate-200 hover:bg-slate-800 flex items-center gap-2"
+                      style={{ color: currentTheme.menuItemText }}
+                      className="w-full text-left p-2 rounded flex items-center gap-2 theme-menu-hover cursor-pointer transition"
                     >
-                      <FileText className="w-3.5 h-3.5 text-amber-400" />
+                      <FileText className="w-3.5 h-3.5" style={{ color: currentTheme.primary }} />
                       <span>Packing Slips &amp; Barcodes</span>
                     </button>
                     <button
                       onClick={() => handleNav('admin-delivery-staff', 'delivery')}
-                      className="w-full text-left p-2 rounded text-slate-200 hover:bg-slate-800 flex items-center gap-2"
+                      style={{ color: currentTheme.menuItemText }}
+                      className="w-full text-left p-2 rounded flex items-center gap-2 theme-menu-hover cursor-pointer transition"
                     >
-                      <Truck className="w-3.5 h-3.5 text-amber-400" />
+                      <Truck className="w-3.5 h-3.5" style={{ color: currentTheme.primary }} />
                       <span>Delivery Boys &amp; Staff</span>
                     </button>
                   </div>
@@ -1071,38 +1333,54 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
 
               {/* Pantry & Financials Accordion */}
-              <div className="bg-slate-800/80 rounded-xl border border-slate-700 overflow-hidden">
+              <div
+                style={{
+                  backgroundColor: currentTheme.menuBg,
+                  borderColor: currentTheme.menuBorder,
+                }}
+                className="rounded-xl border overflow-hidden"
+              >
                 <button
                   onClick={() => setMobileExpandedSection(mobileExpandedSection === 'pantry' ? null : 'pantry')}
-                  className="w-full p-3 font-semibold text-purple-300 flex items-center justify-between"
+                  style={{ color: currentTheme.menuItemText }}
+                  className="w-full p-3 font-semibold flex items-center justify-between cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-purple-400" />
+                    <CreditCard className="w-4 h-4" style={{ color: currentTheme.primary }} />
                     Pantry &amp; Finance
                   </span>
                   <ChevronDown className={`w-4 h-4 transition-transform ${mobileExpandedSection === 'pantry' ? 'rotate-180' : ''}`} />
                 </button>
                 {mobileExpandedSection === 'pantry' && (
-                  <div className="bg-slate-900/80 p-2 space-y-1 border-t border-slate-700/60 text-xs">
+                  <div
+                    style={{
+                      backgroundColor: currentTheme.surfaceDark,
+                      borderColor: currentTheme.menuBorder,
+                    }}
+                    className="p-2 space-y-1 border-t text-xs"
+                  >
                     <button
                       onClick={() => handleNav('admin-pantry-payments')}
-                      className="w-full text-left p-2 rounded text-slate-200 hover:bg-slate-800 flex items-center gap-2"
+                      style={{ color: currentTheme.menuItemText }}
+                      className="w-full text-left p-2 rounded flex items-center gap-2 theme-menu-hover cursor-pointer transition"
                     >
-                      <Receipt className="w-3.5 h-3.5 text-purple-400" />
+                      <Receipt className="w-3.5 h-3.5" style={{ color: currentTheme.primary }} />
                       <span>Pantry Pay Payments Admin</span>
                     </button>
                     <button
                       onClick={() => handleNav('admin-customers')}
-                      className="w-full text-left p-2 rounded text-slate-200 hover:bg-slate-800 flex items-center gap-2"
+                      style={{ color: currentTheme.menuItemText }}
+                      className="w-full text-left p-2 rounded flex items-center gap-2 theme-menu-hover cursor-pointer transition"
                     >
-                      <Users className="w-3.5 h-3.5 text-purple-400" />
+                      <Users className="w-3.5 h-3.5" style={{ color: currentTheme.primary }} />
                       <span>Customer Management 360°</span>
                     </button>
                     <button
                       onClick={() => handleNav('admin-customers', 'holdings')}
-                      className="w-full text-left p-2 rounded text-slate-200 hover:bg-slate-800 flex items-center gap-2"
+                      style={{ color: currentTheme.menuItemText }}
+                      className="w-full text-left p-2 rounded flex items-center gap-2 theme-menu-hover cursor-pointer transition"
                     >
-                      <Wallet className="w-3.5 h-3.5 text-purple-400" />
+                      <Wallet className="w-3.5 h-3.5" style={{ color: currentTheme.primary }} />
                       <span>Live Customer Pantry Holdings</span>
                     </button>
                   </div>
@@ -1110,31 +1388,46 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
 
               {/* Auditor Accordion */}
-              <div className="bg-slate-800/80 rounded-xl border border-slate-700 overflow-hidden">
+              <div
+                style={{
+                  backgroundColor: currentTheme.menuBg,
+                  borderColor: currentTheme.menuBorder,
+                }}
+                className="rounded-xl border overflow-hidden"
+              >
                 <button
                   onClick={() => setMobileExpandedSection(mobileExpandedSection === 'auditor' ? null : 'auditor')}
-                  className="w-full p-3 font-semibold text-cyan-300 flex items-center justify-between"
+                  style={{ color: currentTheme.menuItemText }}
+                  className="w-full p-3 font-semibold flex items-center justify-between cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
-                    <ClipboardCheck className="w-4 h-4 text-cyan-400" />
+                    <ClipboardCheck className="w-4 h-4" style={{ color: currentTheme.primary }} />
                     Auditor &amp; Verification
                   </span>
                   <ChevronDown className={`w-4 h-4 transition-transform ${mobileExpandedSection === 'auditor' ? 'rotate-180' : ''}`} />
                 </button>
                 {mobileExpandedSection === 'auditor' && (
-                  <div className="bg-slate-900/80 p-2 space-y-1 border-t border-slate-700/60 text-xs">
+                  <div
+                    style={{
+                      backgroundColor: currentTheme.surfaceDark,
+                      borderColor: currentTheme.menuBorder,
+                    }}
+                    className="p-2 space-y-1 border-t text-xs"
+                  >
                     <button
                       onClick={() => handleNav('admin-auditor-returns')}
-                      className="w-full text-left p-2 rounded text-slate-200 hover:bg-slate-800 flex items-center gap-2"
+                      style={{ color: currentTheme.menuItemText }}
+                      className="w-full text-left p-2 rounded flex items-center gap-2 theme-menu-hover cursor-pointer transition"
                     >
-                      <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+                      <RotateCcw className="w-3.5 h-3.5" style={{ color: currentTheme.primary }} />
                       <span>Auditor Return Claims</span>
                     </button>
                     <button
                       onClick={() => handleNav('admin-delivery-staff', 'auditors')}
-                      className="w-full text-left p-2 rounded text-slate-200 hover:bg-slate-800 flex items-center gap-2"
+                      style={{ color: currentTheme.menuItemText }}
+                      className="w-full text-left p-2 rounded flex items-center gap-2 theme-menu-hover cursor-pointer transition"
                     >
-                      <UserCheck className="w-3.5 h-3.5 text-cyan-400" />
+                      <UserCheck className="w-3.5 h-3.5" style={{ color: currentTheme.primary }} />
                       <span>Auditor Staff Management</span>
                     </button>
                   </div>
@@ -1143,9 +1436,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               <button
                 onClick={() => handleNav('admin-reports')}
-                className="w-full p-2.5 rounded-xl bg-slate-800 text-slate-200 font-semibold text-left flex items-center gap-2"
+                style={{
+                  backgroundColor: currentTheme.menuBg,
+                  borderColor: currentTheme.menuBorder,
+                  color: currentTheme.menuItemText,
+                }}
+                className="w-full p-2.5 rounded-xl font-semibold text-left flex items-center gap-2 border theme-menu-hover cursor-pointer transition"
               >
-                <BarChart3 className="w-4 h-4 text-blue-400" />
+                <BarChart3 className="w-4 h-4" style={{ color: currentTheme.primary }} />
                 <span>Reports &amp; Logs Admin</span>
               </button>
             </div>
@@ -1155,7 +1453,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="space-y-2">
               <button
                 onClick={() => handleNav('customer-store')}
-                className="w-full p-3 rounded-xl bg-emerald-600 text-white font-bold flex items-center gap-2"
+                style={{
+                  backgroundColor: currentTheme.primary,
+                  color: currentTheme.textOnPrimary,
+                }}
+                className="w-full p-3 rounded-xl font-bold flex items-center gap-2 shadow-md cursor-pointer transition hover:opacity-95"
               >
                 <ShoppingBag className="w-4 h-4" />
                 <span>Shop Fresh Groceries</span>
@@ -1165,15 +1467,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setMobileMenuOpen(false);
                   if (onOpenProfile) onOpenProfile('profile');
                 }}
-                className="w-full p-3 rounded-xl bg-slate-800 text-slate-200 font-semibold flex items-center gap-2"
+                style={{
+                  backgroundColor: currentTheme.menuBg,
+                  borderColor: currentTheme.menuBorder,
+                  color: currentTheme.menuItemText,
+                }}
+                className="w-full p-3 rounded-xl font-semibold flex items-center gap-2 border theme-menu-hover cursor-pointer transition"
               >
-                <UserIcon className="w-4 h-4 text-emerald-400" />
+                <UserIcon className="w-4 h-4" style={{ color: currentTheme.primary }} />
                 <span>My Profile &amp; Passbook</span>
               </button>
             </div>
           )}
         </div>
       )}
+      {/* 10 Ready-Made ERP Themes & Settings Modal */}
+      <ThemeSettingsModal
+        isOpen={showThemeModal}
+        onClose={() => setShowThemeModal(false)}
+      />
     </header>
   );
 };

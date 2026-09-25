@@ -105,7 +105,8 @@ export const AppWindowModal: React.FC<AppWindowModalProps> = ({
   if (isMinimized) {
     return (
       <div
-        className="fixed bottom-4 right-4 z-[999] bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700/80 p-3 pr-4 flex items-center gap-3 animate-in slide-in-from-bottom-5 duration-200 cursor-pointer hover:border-amber-500/60 group transition-all"
+        style={{ borderLeft: '4px solid var(--theme-primary)' }}
+        className="fixed bottom-4 right-4 z-[999] bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700/80 p-3 pr-4 flex items-center gap-3 animate-in slide-in-from-bottom-5 duration-200 cursor-pointer hover:border-slate-500 group transition-all"
         onClick={handleMinimize}
         title="Click to Restore Working Window"
       >
@@ -162,6 +163,7 @@ export const AppWindowModal: React.FC<AppWindowModalProps> = ({
       className={`fixed inset-0 ${zIndex} bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-hidden animate-in fade-in duration-150`}
     >
       <div
+        style={{ borderTop: '4px solid var(--theme-primary)' }}
         className={`bg-white border border-slate-200 flex flex-col shadow-2xl transition-all duration-150 overflow-hidden ${
           isMaximized
             ? 'fixed inset-0 w-screen h-screen max-w-none max-h-none rounded-none z-50'
@@ -181,7 +183,14 @@ export const AppWindowModal: React.FC<AppWindowModalProps> = ({
                 {React.isValidElement(IconComponent) ? (
                   IconComponent
                 ) : (
-                  <div className="p-2 rounded-xl bg-slate-200/80 text-slate-800 border border-slate-300/60 shadow-3xs">
+                  <div
+                    className="p-2 rounded-xl border shadow-3xs"
+                    style={{
+                      backgroundColor: 'var(--theme-primary-50)',
+                      borderColor: 'var(--theme-primary-light)',
+                      color: 'var(--theme-primary-dark)',
+                    }}
+                  >
                     {renderIcon('w-5 h-5')}
                   </div>
                 )}

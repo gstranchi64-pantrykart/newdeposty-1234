@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { MobileOtpLogin } from './components/auth/MobileOtpLogin';
 import { Navbar } from './components/common/Navbar';
@@ -323,8 +324,10 @@ const MainApp: React.FC = () => {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <MainApp />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <MainApp />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

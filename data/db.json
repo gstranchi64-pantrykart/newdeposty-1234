@@ -1588,7 +1588,8 @@
           "image": "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=600&q=80",
           "assignmentStatus": "LOCKED",
           "orderedQuantity": 1,
-          "assignedQuantity": 1
+          "assignedQuantity": 1,
+          "shopkeeperName": "Gupta Agro Suppliers Pvt Ltd"
         },
         {
           "productId": "PRD-006",
@@ -1606,7 +1607,8 @@
           "image": "https://images.unsplash.com/photo-1585994276707-1b09b55589c3?auto=format&fit=crop&w=600&q=80",
           "assignmentStatus": "LOCKED",
           "orderedQuantity": 1,
-          "assignedQuantity": 1
+          "assignedQuantity": 1,
+          "shopkeeperName": "Jharkhand Grain Distributors"
         }
       ],
       "subtotal": 290,
@@ -3814,6 +3816,23 @@
   ],
   "auditLogs": [
     {
+      "id": "LOG-236662-75",
+      "who": "System Administrator",
+      "userMobile": "9876543210",
+      "role": "ADMIN",
+      "action": "AUDITOR_CONFIRM_PANTRY_PAYMENT",
+      "entity": "PANTRY_PAYMENT",
+      "entityId": "PPAY-478993",
+      "newValue": "Auditor/Admin System Administrator confirmed Pantry Pay payment for product Horlicks Health & Nutrition Drink Classic Malt 500g (₹285)",
+      "details": "Auditor/Admin System Administrator confirmed Pantry Pay payment for product Horlicks Health & Nutrition Drink Classic Malt 500g (₹285)",
+      "date": "2026-09-25",
+      "time": "11:37:16 AM",
+      "timestamp": "25/09/2026 11:37:16 AM",
+      "userName": "System Administrator",
+      "userRole": "ADMIN",
+      "entityType": "PANTRY_PAYMENT"
+    },
+    {
       "id": "LOG-478994-56",
       "who": "Ramesh Kumar (Parent)",
       "userMobile": "9123456780",
@@ -4535,6 +4554,7 @@
     "autoAssignDelivery": false,
     "allowChildAccounts": true,
     "maxChildAccountsPerCustomer": 3,
+    "activeThemeId": "yellow-amber",
     "apiIntegrations": {
       "payment": {
         "mode": "DEMO",
@@ -4642,12 +4662,15 @@
       "paymentMethod": "UPI",
       "paymentStatus": "SUCCESS",
       "transactionRef": "UPI-GR-476317",
-      "auditorConfirmationStatus": "PENDING",
+      "auditorConfirmationStatus": "CONFIRMED",
       "createdAt": "2026-09-25 06:57:58",
-      "updatedAt": "2026-09-25 06:57:58",
+      "updatedAt": "2026-09-25 11:37:16",
       "paymentType": "PRODUCT_PAYMENT",
       "isWalletRecharge": false,
-      "walletCredited": false
+      "walletCredited": false,
+      "confirmedBy": "System Administrator",
+      "confirmedAt": "2026-09-25 11:37:16",
+      "adminRemarks": "Verified and approved via bank UPI reference check"
     }
   ],
   "walletRechargeRequests": [],
