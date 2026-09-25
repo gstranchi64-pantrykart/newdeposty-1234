@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@layer base {
+  :root,
+  html {
+    /* Base font size reduced by 6pt/6px across the entire web application */
+    font-size: 12px !important;
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    font-size: 1rem;
+    line-height: 1.4;
+  }
+
+  /* Micro font classes scaled down proportionally */
+  [class*="text-[8px]"] {
+    font-size: 7px !important;
+  }
+  [class*="text-[9px]"] {
+    font-size: 8px !important;
+  }
+  [class*="text-[10px]"] {
+    font-size: 9px !important;
+  }
+  [class*="text-[11px]"] {
+    font-size: 9.5px !important;
+  }
+  [class*="text-[12px]"] {
+    font-size: 10px !important;
+  }
+}
