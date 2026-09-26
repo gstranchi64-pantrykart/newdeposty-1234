@@ -114,12 +114,11 @@ async function startServer() {
   };
 
   // ---------------- AUTH API ----------------
-  app.post('/api/auth/verify-mobile', (req: Request, res: Response) => {
+  const handleVerifyMobile = (req: Request, res: Response) => {
     try {
-      const { mobile } = req.body;
+      const mobile = req.body?.mobile || req.query?.mobile;
       if (!mobile) return res.status(400).json({ error: 'Mobile number is required' });
-      const authData = BusinessService.verifyMobile(mobile);
-      // Generated 6-digit OTP returned for verification (e.g. 123456 or randomly generated)
+      const authData = BusinessService.verifyMobile(String(mobile));
       return res.json({
         success: true,
         message: 'OTP sent to mobile number',
@@ -132,16 +131,21 @@ async function startServer() {
     } catch (err: any) {
       return res.status(400).json({ error: err.message || 'Mobile verification failed.' });
     }
-  });
+  };
 
-  app.post('/api/auth/verify-otp', (req: Request, res: Response) => {
+  app.post('/api/auth/verify-mobile', handleVerifyMobile);
+  app.get('/api/auth/verify-mobile', handleVerifyMobile);
+  app.post('/api/auth/verify-mobile/', handleVerifyMobile);
+  app.get('/api/auth/verify-mobile/', handleVerifyMobile);
+
+  const handleVerifyOtp = (req: Request, res: Response) => {
     try {
-      const { mobile, otp } = req.body;
+      const mobile = req.body?.mobile || req.query?.mobile;
+      const otp = req.body?.otp || req.query?.otp;
       if (!mobile) return res.status(400).json({ error: 'Mobile number required' });
       if (!otp) return res.status(400).json({ error: 'OTP is required' });
 
-      // Valid OTP check (accepts standard demo OTP 123456 or any 6-digit number)
-      const authData = BusinessService.verifyMobile(mobile);
+      const authData = BusinessService.verifyMobile(String(mobile));
       return res.json({
         success: true,
         token: `session-${Date.now()}-${authData.user.id}`,
@@ -153,7 +157,12 @@ async function startServer() {
     } catch (err: any) {
       return res.status(400).json({ error: err.message || 'OTP verification failed' });
     }
-  });
+  };
+
+  app.post('/api/auth/verify-otp', handleVerifyOtp);
+  app.get('/api/auth/verify-otp', handleVerifyOtp);
+  app.post('/api/auth/verify-otp/', handleVerifyOtp);
+  app.get('/api/auth/verify-otp/', handleVerifyOtp);
 
   // ---------------- DASHBOARD & SUMMARY ----------------
   app.get('/api/dashboard/summary', (_req: Request, res: Response) => {

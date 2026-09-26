@@ -107,17 +107,26 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
     const text = await res.text();
+    // Try parsing as JSON even if Content-Type header is missing
+    try {
+      const parsed = JSON.parse(text);
+      if (!res.ok) {
+        throw new Error(parsed.error || parsed.message || `API request failed with status ${res.status}`);
+      }
+      return parsed as T;
+    } catch (e: any) {
+      if (e.message && !e.message.includes('JSON') && !e.message.includes('Unexpected token')) {
+        throw e;
+      }
+    }
+
     if (!res.ok) {
       if (res.status === 404) {
-        throw new Error('Server route or service temporarily unavailable. Please try again.');
+        throw new Error(`Endpoint ${url} unavailable (HTTP 404). Please try again.`);
       }
       throw new Error(`Server connection issue (HTTP ${res.status}). Please try again.`);
     }
-    try {
-      return JSON.parse(text) as T;
-    } catch {
-      throw new Error('Server returned invalid data format. Please try again.');
-    }
+    throw new Error('Server returned non-JSON response. Please try again.');
   }
 
   const data = await res.json();
