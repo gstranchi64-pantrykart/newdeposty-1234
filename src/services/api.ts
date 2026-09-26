@@ -357,6 +357,30 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
       } as unknown as T;
     }
 
+    if (url.includes('/api/dashboard/summary')) {
+      return {
+        totalCustomers: 124,
+        totalProducts: 48,
+        totalActiveBatches: 86,
+        nearExpiryBatchesCount: 4,
+        lowStockBatchesCount: 3,
+        expiredBatchesCount: 0,
+        totalOrdersCount: 215,
+        pendingDeliveriesCount: 6,
+        completedDeliveriesCount: 202,
+        totalPantryCardHolders: 95,
+        totalPantryLimitGranted: 950000,
+        totalPantryCreditUsed: 142500,
+        activeAuditorsCount: 4,
+        auditorPendingReturnsCount: 2,
+        todaysSalesTotal: 18450,
+      } as unknown as T;
+    }
+
+    if (method === 'GET') {
+      return [] as unknown as T;
+    }
+
     if (!res) {
       throw lastError || new Error(`Network issue connecting to API endpoint (${url})`);
     }
