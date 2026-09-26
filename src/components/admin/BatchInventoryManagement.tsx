@@ -144,6 +144,10 @@ export const BatchInventoryManagement: React.FC<BatchInventoryManagementProps> =
 
   useEffect(() => {
     fetchData();
+    const unsubscribe = api.subscribeRealtime(() => {
+      fetchData();
+    });
+    return () => unsubscribe();
   }, []);
 
   const getProductImage = (productId: string) => {

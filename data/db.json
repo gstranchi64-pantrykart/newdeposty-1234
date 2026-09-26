@@ -112,6 +112,58 @@
   ],
   "orders": [
     {
+      "id": "ORD-Q-838956",
+      "orderType": "QUICK",
+      "customerId": "CUS-000001",
+      "customerName": "Ramesh Kumar",
+      "customerMobile": "9123456780",
+      "deliveryAddress": "123 Main St",
+      "items": [
+        {
+          "productId": "PRD-001",
+          "productName": "Horlicks Health & Nutrition Drink Classic Malt 500g",
+          "brand": "Horlicks",
+          "weightSize": "500g",
+          "barcode": "123456789",
+          "batchId": "BATCH-001",
+          "batchNumber": "124001",
+          "manufacturingDate": "2026-07-21",
+          "expiryDate": "2027-07-16",
+          "quantity": 1,
+          "orderedQuantity": 1,
+          "assignedQuantity": 0,
+          "assignmentStatus": "PENDING",
+          "price": 285,
+          "mrp": 320,
+          "image": "https://images.unsplash.com/photo-1550989460-0adf9ea622e2?auto=format&fit=crop&w=600&q=80",
+          "shopkeeperName": "Ranchi Wholesale FMCG Mart"
+        }
+      ],
+      "subtotal": 285,
+      "deliveryFee": 25,
+      "totalAmount": 310,
+      "pantryDebitAmount": 0,
+      "codAmount": 310,
+      "paymentStatus": "COD_PENDING",
+      "orderStatus": "PENDING",
+      "assignmentStatus": "PENDING_ASSIGNMENT",
+      "packingStatus": "PENDING",
+      "createdAt": "26/09/2026 12:13:58 PM",
+      "updatedAt": "26/09/2026 12:13:58 PM",
+      "trackingTimeline": [
+        {
+          "step": "PENDING",
+          "title": "Order Placed & Registered",
+          "description": "Order ORD-Q-838956 registered for ₹310 (Quick COD). Awaiting Admin product & batch assignment.",
+          "location": "Customer Storefront / App",
+          "timestamp": "26/09/2026 12:13:58 PM",
+          "performedBy": "Ramesh Kumar",
+          "locked": true
+        }
+      ],
+      "assignmentAuditHistory": []
+    },
+    {
       "id": "ORD-P-677538",
       "items": [
         {
@@ -1495,6 +1547,23 @@
     "auditRequireCustomerConfirmation": true
   },
   "auditLogs": [
+    {
+      "id": "LOG-838956-3",
+      "who": "Ramesh Kumar (Parent)",
+      "userMobile": "",
+      "role": "CUSTOMER",
+      "action": "CREATE_QUICK_ORDER",
+      "entity": "ORDER",
+      "entityId": "ORD-Q-838956",
+      "newValue": "Placed Quick COD Order for ₹310 (Awaiting Admin Product Assignment)",
+      "details": "Placed Quick COD Order for ₹310 (Awaiting Admin Product Assignment)",
+      "date": "2026-09-26",
+      "time": "12:13:58 PM",
+      "timestamp": "26/09/2026 12:13:58 PM",
+      "userName": "Ramesh Kumar (Parent)",
+      "userRole": "CUSTOMER",
+      "entityType": "ORDER"
+    },
     {
       "id": "LOG-988063-78",
       "who": "Suresh Field Auditor",
@@ -4080,6 +4149,7 @@
       "replacementsInitiatedCount": 1
     }
   ],
+  "lastUpdatedAt": "2026-09-26T12:13:58.965Z",
   "pantryPayments": [
     {
       "id": "PPAY-478993",

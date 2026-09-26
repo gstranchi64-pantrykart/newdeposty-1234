@@ -52,12 +52,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   useEffect(() => {
-    if (!propSummary) {
+    fetchSummary();
+    const unsubscribe = api.subscribeRealtime(() => {
       fetchSummary();
-    } else {
-      setLocalSummary(propSummary);
-    }
-  }, [propSummary]);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const summary = localSummary;
 

@@ -72,6 +72,10 @@ export const CustomerOrdersHistory: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+    const unsubscribe = api.subscribeRealtime(() => {
+      fetchData();
+    });
+    return () => unsubscribe();
   }, [customer?.id]);
 
   const handleGrantPermission = async (auditId: string) => {

@@ -87,6 +87,10 @@ export const DeliveryBoyPortal: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+    const unsubscribe = api.subscribeRealtime(() => {
+      fetchData();
+    });
+    return () => unsubscribe();
   }, [deliveryBoy?.id, user?.deliveryBoyId]);
 
   // Handle Order Accept

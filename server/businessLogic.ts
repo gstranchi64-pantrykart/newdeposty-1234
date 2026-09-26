@@ -1951,7 +1951,12 @@ export class BusinessService {
     user: User
   ): Order {
     const db = store.getDb();
-    const customer = db.customers.find((c) => c.id === payload.customerId);
+    const customer = db.customers.find(
+      (c) =>
+        c.id === payload.customerId ||
+        (payload.customerId && normalizeMobile(c.mobile) === normalizeMobile(payload.customerId)) ||
+        (user && user.role === 'CUSTOMER' && (c.id === user.customerId || normalizeMobile(c.mobile) === normalizeMobile(user.mobile)))
+    );
     if (!customer) throw new Error(`Customer ${payload.customerId} not found.`);
 
     if (!payload.items || payload.items.length === 0) {
@@ -2073,7 +2078,12 @@ export class BusinessService {
     user: User
   ): Order {
     const db = store.getDb();
-    const customer = db.customers.find((c) => c.id === payload.customerId);
+    const customer = db.customers.find(
+      (c) =>
+        c.id === payload.customerId ||
+        (payload.customerId && normalizeMobile(c.mobile) === normalizeMobile(payload.customerId)) ||
+        (user && user.role === 'CUSTOMER' && (c.id === user.customerId || normalizeMobile(c.mobile) === normalizeMobile(user.mobile)))
+    );
     if (!customer) throw new Error(`Customer ${payload.customerId} not found.`);
 
     // Shared limit account resolution (Parent account if child)

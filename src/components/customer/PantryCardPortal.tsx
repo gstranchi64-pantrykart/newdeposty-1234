@@ -174,6 +174,10 @@ export const PantryCardPortal: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+    const unsubscribe = api.subscribeRealtime(() => {
+      fetchData();
+    });
+    return () => unsubscribe();
   }, [customer?.id]);
 
   const handleConfirmAuditVisit = async (auditId: string) => {

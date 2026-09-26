@@ -324,6 +324,10 @@ export const OrdersAndDeliveryAdmin: React.FC<OrdersAndDeliveryAdminProps> = ({
 
   useEffect(() => {
     fetchData();
+    const unsubscribe = api.subscribeRealtime(() => {
+      fetchData();
+    });
+    return () => unsubscribe();
   }, [initialFilter]);
 
   // Specific Order Lookup when selected order updates

@@ -115,6 +115,10 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
 
   useEffect(() => {
     fetchData();
+    const unsubscribe = api.subscribeRealtime(() => {
+      fetchData();
+    });
+    return () => unsubscribe();
   }, []);
 
   const now = new Date().getTime();

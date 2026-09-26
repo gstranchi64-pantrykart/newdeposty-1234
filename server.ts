@@ -34,6 +34,47 @@ async function startServer() {
     next();
   });
 
+  // Real-Time Synchronization via Server-Sent Events (SSE)
+  const sseClients = new Set<Response>();
+
+  app.get('/api/events', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    if (typeof (res as any).flushHeaders === 'function') {
+      (res as any).flushHeaders();
+    }
+
+    sseClients.add(res);
+    res.write(`data: ${JSON.stringify({ type: 'CONNECTED', timestamp: Date.now() })}\n\n`);
+
+    const heartbeat = setInterval(() => {
+      try {
+        res.write(': heartbeat\n\n');
+      } catch {
+        clearInterval(heartbeat);
+        sseClients.delete(res);
+      }
+    }, 15000);
+
+    _req.on('close', () => {
+      clearInterval(heartbeat);
+      sseClients.delete(res);
+    });
+  });
+
+  const broadcastDataChange = (action: string, payload?: any) => {
+    const msg = `data: ${JSON.stringify({ type: 'DATABASE_MUTATION', action, timestamp: Date.now(), payload })}\n\n`;
+    for (const client of sseClients) {
+      try {
+        client.write(msg);
+      } catch {
+        sseClients.delete(client);
+      }
+    }
+  };
+
   // Helper to extract acting user from headers
   const getActingUser = (req: Request): User => {
     const userHeader = req.headers['x-user-id'] as string;

@@ -215,7 +215,14 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ onConduc
 
   useEffect(() => {
     fetchCustomers();
-  }, []);
+    const unsubscribe = api.subscribeRealtime(() => {
+      fetchCustomers();
+      if (selectedCustomer) {
+        openCustomer360(selectedCustomer);
+      }
+    });
+    return () => unsubscribe();
+  }, [selectedCustomer?.id]);
 
   const openCustomer360 = async (cust: Customer) => {
     setSelectedCustomer(cust);

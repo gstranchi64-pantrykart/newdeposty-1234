@@ -347,6 +347,10 @@ export const AuditorPortal: React.FC = () => {
 
   useEffect(() => {
     fetchCustomersAndPastAudits();
+    const unsubscribe = api.subscribeRealtime(() => {
+      fetchCustomersAndPastAudits();
+    });
+    return () => unsubscribe();
   }, []);
 
   // Fetch Pantry Items & Wallet when customer changes

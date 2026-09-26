@@ -25,13 +25,70 @@ import {
   SupabaseSyncResult,
   BatchLifecycleDetails,
   BarcodeLifecycleDetails,
-  CustomerPantryHolding,
   CustomerPantryHoldingsResponse,
 } from '../types';
 
-import { clientStore } from './clientStore';
+// Real-Time Event Subscriber
+type RealtimeCallback = (event: { type: string; action?: string; timestamp?: number; payload?: any }) => void;
+const subscribers = new Set<RealtimeCallback>();
 
-const getHeaders = (userId?: string) => {
+let eventSource: EventSource | null = null;
+const broadcastChannel =
+  typeof window !== 'undefined' && 'BroadcastChannel' in window
+    ? new BroadcastChannel('pantrymaster_realtime_sync')
+    : null;
+
+if (broadcastChannel) {
+  broadcastChannel.onmessage = (event) => {
+    subscribers.forEach((cb) => {
+      try {
+        cb(event.data);
+      } catch (e) {
+        console.error('[Realtime Sync Error]', e);
+      }
+    });
+  };
+}
+
+export function initRealtimeConnection() {
+  if (typeof window === 'undefined') return;
+  if (eventSource) return;
+
+  try {
+    eventSource = new EventSource('/api/events');
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'DATABASE_MUTATION') {
+          subscribers.forEach((cb) => cb(data));
+        }
+      } catch (err) {
+        console.warn('[Realtime Event Parse Warning]', err);
+      }
+    };
+    eventSource.onerror = () => {
+      // EventSource auto-reconnects natively
+    };
+  } catch (e) {
+    console.warn('[Realtime Connection Warning]', e);
+  }
+}
+
+function notifyRealtimeMutation(action: string, payload?: any) {
+  const event = { type: 'DATABASE_MUTATION', action, timestamp: Date.now(), payload };
+  subscribers.forEach((cb) => {
+    try {
+      cb(event);
+    } catch {}
+  });
+  if (broadcastChannel) {
+    try {
+      broadcastChannel.postMessage(event);
+    } catch {}
+  }
+}
+
+const getHeaders = (userId?: string): Record<string, string> => {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -40,7 +97,7 @@ const getHeaders = (userId?: string) => {
   };
   if (userId) {
     headers['x-user-id'] = userId;
-  } else {
+  } else if (typeof localStorage !== 'undefined') {
     const saved = localStorage.getItem('pm_user');
     if (saved) {
       try {
@@ -52,179 +109,150 @@ const getHeaders = (userId?: string) => {
   return headers;
 };
 
-async function safeFetchJson<T>(
-  url: string,
-  options?: RequestInit,
-  fallback?: () => T | Promise<T>
-): Promise<T> {
-  try {
-    const sep = url.includes('?') ? '&' : '?';
-    const finalUrl = options?.method && options.method !== 'GET' ? url : `${url}${sep}_t=${Date.now()}`;
-    const res = await fetch(finalUrl, {
-      ...options,
-      cache: 'no-store',
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-        ...(options?.headers || {}),
-      },
-    });
-    return await handleResponse<T>(res, fallback);
-  } catch (err: any) {
-    if (fallback) {
-      return await fallback();
-    }
-    throw err;
-  }
-}
+// Core Strict Fetch Function: Performs real API request to backend, verifies HTTP 200,
+// and THROWS REAL ERROR if request fails or database rejects write.
+async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
+  const method = (options?.method || 'GET').toUpperCase();
+  const sep = url.includes('?') ? '&' : '?';
+  const finalUrl = method === 'GET' ? `${url}${sep}_t=${Date.now()}` : url;
 
-async function handleResponse<T>(res: globalThis.Response, fallback?: () => T | Promise<T>): Promise<T> {
+  const res = await fetch(finalUrl, {
+    ...options,
+    cache: 'no-store',
+    headers: {
+      ...getHeaders(),
+      ...(options?.headers || {}),
+    },
+  });
+
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
     const text = await res.text();
-    if (text.trim().startsWith('<')) {
-      if (fallback) {
-        return await fallback();
-      }
-      console.warn(`[API Notice] Server returned HTML for ${res.url}. Falling back to client-side data.`);
-      return [] as unknown as T;
+    if (!res.ok) {
+      throw new Error(`Server returned HTTP ${res.status}: ${text || res.statusText}`);
     }
     try {
-      const data = JSON.parse(text);
-      if (!res.ok) {
-        if (fallback) return await fallback();
-        throw new Error(data.error || 'Server error');
-      }
-      return data as T;
+      return JSON.parse(text) as T;
     } catch {
-      if (fallback) return await fallback();
-      return [] as unknown as T;
+      throw new Error(`Unexpected non-JSON response from server: ${text.substring(0, 100)}`);
     }
   }
-  try {
-    const data = await res.json();
-    if (!res.ok) {
-      if (fallback) return await fallback();
-      throw new Error(data.error || 'Server error occurred');
-    }
-    return data as T;
-  } catch (err: any) {
-    if (fallback) return await fallback();
-    throw err;
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || data.message || `API request failed with status ${res.status}`);
   }
+
+  return data as T;
 }
 
 export const api = {
+  // Realtime Subscription
+  subscribeRealtime: (callback: RealtimeCallback) => {
+    subscribers.add(callback);
+    initRealtimeConnection();
+    return () => {
+      subscribers.delete(callback);
+    };
+  },
+
+  notifyMutation: (action: string, payload?: any) => {
+    notifyRealtimeMutation(action, payload);
+  },
+
   // Auth
   verifyMobile: async (mobile: string) => {
-    return safeFetchJson(
-      '/api/auth/verify-mobile',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile }),
-      },
-      () => clientStore.verifyMobile(mobile)
-    );
+    return fetchJson<{
+      success: boolean;
+      message: string;
+      otpHint: string;
+      user: User;
+      customer?: Customer;
+      deliveryBoy?: DeliveryBoy;
+      auditor?: Auditor;
+    }>('/api/auth/verify-mobile', {
+      method: 'POST',
+      body: JSON.stringify({ mobile }),
+    });
   },
 
   verifyOtp: async (mobile: string, otp: string) => {
-    return safeFetchJson(
-      '/api/auth/verify-otp',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile, otp }),
-      },
-      () => clientStore.verifyOtp(mobile, otp)
-    );
+    return fetchJson<{
+      success: boolean;
+      token: string;
+      user: User;
+      customer?: Customer;
+      deliveryBoy?: DeliveryBoy;
+      auditor?: Auditor;
+    }>('/api/auth/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify({ mobile, otp }),
+    });
   },
 
   // Dashboard
   getDashboardSummary: async () => {
-    return safeFetchJson(
-      '/api/dashboard/summary',
-      { headers: getHeaders() },
-      () => clientStore.getDashboardSummary()
-    );
+    return fetchJson<DashboardSummary>('/api/dashboard/summary');
   },
 
   // Customers
   getCustomers: async () => {
-    return safeFetchJson(
-      '/api/customers',
-      { headers: getHeaders() },
-      () => clientStore.getCustomers()
-    );
+    return fetchJson<Customer[]>('/api/customers');
   },
 
   getCustomerById: async (id: string) => {
-    return safeFetchJson(
-      `/api/customers/${id}`,
-      { headers: getHeaders() },
-      () => clientStore.getCustomerById(id)
-    );
+    return fetchJson<Customer>(`/api/customers/${id}`);
   },
 
   createCustomer: async (customer: Partial<Customer>) => {
-    return safeFetchJson(
-      '/api/customers',
-      {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(customer),
-      },
-      () => clientStore.createCustomer(customer)
-    );
+    const result = await fetchJson<Customer>('/api/customers', {
+      method: 'POST',
+      body: JSON.stringify(customer),
+    });
+    notifyRealtimeMutation('CREATE_CUSTOMER', result);
+    return result;
   },
 
   createChildCustomer: async (parentId: string, childData: Partial<Customer>) => {
-    return safeFetchJson(
-      `/api/customers/${parentId}/children`,
-      {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(childData),
-      },
-      () => clientStore.createChildCustomer(parentId, childData)
-    );
+    const result = await fetchJson<Customer>(`/api/customers/${parentId}/children`, {
+      method: 'POST',
+      body: JSON.stringify(childData),
+    });
+    notifyRealtimeMutation('CREATE_CHILD_CUSTOMER', result);
+    return result;
   },
 
   updateCustomer: async (id: string, customer: Partial<Customer>) => {
-    return safeFetchJson(
-      `/api/customers/${id}`,
-      {
-        method: 'PUT',
-        headers: getHeaders(),
-        body: JSON.stringify(customer),
-      },
-      () => clientStore.updateCustomer(id, customer)
-    );
+    const result = await fetchJson<Customer>(`/api/customers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(customer),
+    });
+    notifyRealtimeMutation('UPDATE_CUSTOMER', result);
+    return result;
   },
 
   updatePantryLimit: async (customerId: string, newLimit: number, reason: string) => {
-    return safeFetchJson(
-      `/api/customers/${customerId}/pantry-limit`,
-      {
-        method: 'PUT',
-        headers: getHeaders(),
-        body: JSON.stringify({ newLimit, reason }),
-      },
-      () => clientStore.updatePantryLimit(customerId, newLimit, reason)
-    );
+    const result = await fetchJson<Customer>(`/api/customers/${customerId}/pantry-limit`, {
+      method: 'PUT',
+      body: JSON.stringify({ newLimit, reason }),
+    });
+    notifyRealtimeMutation('UPDATE_PANTRY_LIMIT', result);
+    return result;
   },
 
   sendPantryPermissionOtp: async (customerId: string, action: 'ALLOW' | 'REVOKE', adminMobile?: string) => {
-    return safeFetchJson(
-      '/api/admin/pantry-permission/send-otp',
-      {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ customerId, action, adminMobile }),
-      },
-      () => clientStore.sendPantryPermissionOtp(customerId, action, adminMobile)
-    );
+    return fetchJson<{
+      success: boolean;
+      message: string;
+      otpHint: string;
+      adminMobile: string;
+      customerName: string;
+      action: string;
+      linkedChildrenCount: number;
+    }>('/api/admin/pantry-permission/send-otp', {
+      method: 'POST',
+      body: JSON.stringify({ customerId, action, adminMobile }),
+    });
   },
 
   verifyPantryPermissionOtpAndToggle: async (params: {
@@ -234,27 +262,22 @@ export const api = {
     otp: string;
     reason?: string;
   }) => {
-    return safeFetchJson(
-      '/api/admin/pantry-permission/verify-and-toggle',
-      {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(params),
-      },
-      () => clientStore.verifyPantryPermissionOtpAndToggle(params)
-    );
+    const result = await fetchJson<{
+      success: boolean;
+      message: string;
+      customer: Customer;
+      affectedChildren: Customer[];
+    }>('/api/admin/pantry-permission/verify-and-toggle', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+    notifyRealtimeMutation('TOGGLE_PANTRY_PERMISSION', result);
+    return result;
   },
 
   // Delivery Boys
   getDeliveryBoys: async () => {
-    return safeFetchJson(
-      '/api/delivery-boys',
-      { headers: getHeaders() },
-      async () => {
-        await clientStore.syncWithSupabase();
-        return clientStore.getDeliveryBoys();
-      }
-    );
+    return fetchJson<DeliveryBoy[]>('/api/delivery-boys');
   },
 
   createDeliveryBoy: async (data: Partial<DeliveryBoy> & { name?: string }) => {
@@ -262,39 +285,26 @@ export const api = {
       fullName: data.fullName || (data as any).name || 'Delivery Partner',
       ...data,
     };
-    return safeFetchJson(
-      '/api/delivery-boys',
-      {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(formatted),
-      },
-      () => clientStore.createDeliveryBoy(formatted)
-    );
+    const result = await fetchJson<DeliveryBoy>('/api/delivery-boys', {
+      method: 'POST',
+      body: JSON.stringify(formatted),
+    });
+    notifyRealtimeMutation('CREATE_DELIVERY_BOY', result);
+    return result;
   },
 
   updateDeliveryBoy: async (id: string, data: Partial<DeliveryBoy>) => {
-    return safeFetchJson(
-      `/api/delivery-boys/${id}`,
-      {
-        method: 'PUT',
-        headers: getHeaders(),
-        body: JSON.stringify(data),
-      },
-      () => clientStore.updateDeliveryBoy(id, data)
-    );
+    const result = await fetchJson<DeliveryBoy>(`/api/delivery-boys/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    notifyRealtimeMutation('UPDATE_DELIVERY_BOY', result);
+    return result;
   },
 
   // Auditors
   getAuditors: async () => {
-    return safeFetchJson(
-      '/api/auditors',
-      { headers: getHeaders() },
-      async () => {
-        await clientStore.syncWithSupabase();
-        return clientStore.getAuditors();
-      }
-    );
+    return fetchJson<Auditor[]>('/api/auditors');
   },
 
   createAuditor: async (data: Partial<Auditor> & { name?: string }) => {
@@ -302,125 +312,82 @@ export const api = {
       fullName: data.fullName || (data as any).name || 'Field Auditor',
       ...data,
     };
-    return safeFetchJson(
-      '/api/auditors',
-      {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(formatted),
-      },
-      () => clientStore.createAuditor(formatted)
-    );
+    const result = await fetchJson<Auditor>('/api/auditors', {
+      method: 'POST',
+      body: JSON.stringify(formatted),
+    });
+    notifyRealtimeMutation('CREATE_AUDITOR', result);
+    return result;
   },
 
   updateAuditor: async (id: string, data: Partial<Auditor>) => {
-    try {
-      clientStore.updateAuditor(id, data);
-      const savedAuditor = localStorage.getItem('pm_auditor');
-      if (savedAuditor) {
-        const parsed = JSON.parse(savedAuditor);
-        if (parsed.id === id) {
-          localStorage.setItem('pm_auditor', JSON.stringify({ ...parsed, ...data }));
-        }
-      }
-    } catch {}
-
-    return safeFetchJson(
-      `/api/auditors/${id}`,
-      {
-        method: 'PUT',
-        headers: getHeaders(),
-        body: JSON.stringify(data),
-      },
-      () => clientStore.updateAuditor(id, data)
-    );
+    const result = await fetchJson<Auditor>(`/api/auditors/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    notifyRealtimeMutation('UPDATE_AUDITOR', result);
+    return result;
   },
 
   // Products
   getProducts: async (publishedOnly = false) => {
-    return safeFetchJson(
-      `/api/products?publishedOnly=${publishedOnly}`,
-      { headers: getHeaders() },
-      async () => {
-        await clientStore.syncWithSupabase();
-        return clientStore.getProducts();
-      }
-    );
+    return fetchJson<Product[]>(`/api/products?publishedOnly=${publishedOnly}`);
   },
 
   getProductByBarcode: async (barcode: string) => {
-    return safeFetchJson(
-      `/api/products/barcode/${encodeURIComponent(barcode)}`,
-      { headers: getHeaders() },
-      () => clientStore.getProductByBarcode(barcode)
-    );
+    return fetchJson<Product>(`/api/products/barcode/${encodeURIComponent(barcode)}`);
   },
 
   getProductById: async (id: string) => {
-    return safeFetchJson(
-      `/api/products/${id}`,
-      { headers: getHeaders() },
-      () => clientStore.getProductById(id)
-    );
+    return fetchJson<Product>(`/api/products/${id}`);
   },
 
   createProduct: async (product: Partial<Product>) => {
-    const res = await fetch('/api/products', {
+    const result = await fetchJson<Product>('/api/products', {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify(product),
     });
-    return handleResponse<Product>(res);
+    notifyRealtimeMutation('CREATE_PRODUCT', result);
+    return result;
   },
 
   updateProduct: async (id: string, product: Partial<Product>) => {
-    const res = await fetch(`/api/products/${id}`, {
+    const result = await fetchJson<Product>(`/api/products/${id}`, {
       method: 'PUT',
-      headers: getHeaders(),
       body: JSON.stringify(product),
     });
-    return handleResponse<Product>(res);
+    notifyRealtimeMutation('UPDATE_PRODUCT', result);
+    return result;
   },
 
   // Batches & Inventory
   getBatches: async () => {
-    return safeFetchJson(
-      '/api/batches',
-      { headers: getHeaders() },
-      () => clientStore.getBatches()
-    );
+    return fetchJson<ProductBatch[]>('/api/batches');
   },
 
   getBatchDetails: async (batchIdentifier: string) => {
-    const res = await fetch(`/api/batches/${encodeURIComponent(batchIdentifier)}/details`, { headers: getHeaders() });
-    return handleResponse<BatchLifecycleDetails>(res);
+    return fetchJson<BatchLifecycleDetails>(`/api/batches/${encodeURIComponent(batchIdentifier)}/details`);
   },
 
   getBarcodeDetails: async (barcode: string) => {
-    const res = await fetch(`/api/inventory/barcode/${encodeURIComponent(barcode)}/details`, { headers: getHeaders() });
-    return handleResponse<BarcodeLifecycleDetails>(res);
+    return fetchJson<BarcodeLifecycleDetails>(`/api/inventory/barcode/${encodeURIComponent(barcode)}/details`);
   },
 
   getBatchesByProduct: async (productId: string) => {
-    const res = await fetch(`/api/batches/product/${productId}`, { headers: getHeaders() });
-    return handleResponse<ProductBatch[]>(res);
+    return fetchJson<ProductBatch[]>(`/api/batches/product/${productId}`);
   },
 
   adjustBatchStock: async (batchId: string, newAvailableQty: number, reason: string) => {
-    const res = await fetch('/api/batches/adjust', {
+    const result = await fetchJson<ProductBatch>('/api/batches/adjust', {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify({ batchId, newAvailableQty, reason }),
     });
-    return handleResponse<ProductBatch>(res);
+    notifyRealtimeMutation('ADJUST_STOCK', result);
+    return result;
   },
 
   getPurchases: async () => {
-    return safeFetchJson(
-      '/api/purchases',
-      { headers: getHeaders() },
-      () => clientStore.getPurchases()
-    );
+    return fetchJson<PurchaseEntry[]>('/api/purchases');
   },
 
   purchaseStock: async (data: {
@@ -439,12 +406,15 @@ export const api = {
     invoiceReference?: string;
     notes?: string;
   }) => {
-    const res = await fetch('/api/purchases', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(data),
-    });
-    return handleResponse<{ purchase: PurchaseEntry; batch: ProductBatch; isNewBatch: boolean }>(res);
+    const result = await fetchJson<{ purchase: PurchaseEntry; batch: ProductBatch; isNewBatch: boolean }>(
+      '/api/purchases',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+    notifyRealtimeMutation('PURCHASE_STOCK', result);
+    return result;
   },
 
   // Orders
@@ -454,11 +424,7 @@ export const api = {
     if (filter?.orderType) params.append('orderType', filter.orderType);
     if (filter?.deliveryBoyId) params.append('deliveryBoyId', filter.deliveryBoyId);
 
-    return safeFetchJson(
-      `/api/orders?${params.toString()}`,
-      { headers: getHeaders() },
-      () => clientStore.getOrders()
-    );
+    return fetchJson<Order[]>(`/api/orders?${params.toString()}`);
   },
 
   createQuickOrder: async (payload: {
@@ -466,12 +432,12 @@ export const api = {
     items: { productId: string; batchId?: string; quantity: number }[];
     deliveryAddress?: string;
   }) => {
-    const res = await fetch('/api/orders/quick', {
+    const result = await fetchJson<Order>('/api/orders/quick', {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify(payload),
     });
-    return handleResponse<Order>(res);
+    notifyRealtimeMutation('CREATE_QUICK_ORDER', result);
+    return result;
   },
 
   createPantryOrder: async (payload: {
@@ -479,12 +445,12 @@ export const api = {
     items: { productId: string; batchId?: string; quantity: number }[];
     deliveryAddress?: string;
   }) => {
-    const res = await fetch('/api/orders/pantry', {
+    const result = await fetchJson<Order>('/api/orders/pantry', {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify(payload),
     });
-    return handleResponse<Order>(res);
+    notifyRealtimeMutation('CREATE_PANTRY_ORDER', result);
+    return result;
   },
 
   createOrder: async (payload: {
@@ -508,135 +474,135 @@ export const api = {
   },
 
   assignOrderItemBatch: async (orderId: string, itemIndex: number, batchId: string) => {
-    const res = await fetch(`/api/orders/${orderId}/assign-batch`, {
+    const result = await fetchJson<Order>(`/api/orders/${orderId}/assign-batch`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify({ itemIndex, batchId }),
     });
-    return handleResponse<Order>(res);
+    notifyRealtimeMutation('ASSIGN_ORDER_BATCH', result);
+    return result;
   },
 
   assignAllOrderBatches: async (orderId: string, assignments: { itemIndex: number; batchId: string }[]) => {
-    const res = await fetch(`/api/orders/${orderId}/assign-all-batches`, {
+    const result = await fetchJson<Order>(`/api/orders/${orderId}/assign-all-batches`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify({ assignments }),
     });
-    return handleResponse<Order>(res);
+    notifyRealtimeMutation('ASSIGN_ALL_ORDER_BATCHES', result);
+    return result;
   },
 
   confirmAndLockOrderAssignment: async (
     orderId: string,
     assignments?: { itemIndex: number; batchId: string }[]
   ) => {
-    const res = await fetch(`/api/orders/${orderId}/confirm-assignment`, {
+    const result = await fetchJson<Order>(`/api/orders/${orderId}/confirm-assignment`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify({ assignments }),
     });
-    return handleResponse<Order>(res);
+    notifyRealtimeMutation('CONFIRM_ORDER_ASSIGNMENT', result);
+    return result;
   },
 
   generateOrderBill: async (orderId: string) => {
-    const res = await fetch(`/api/orders/${orderId}/generate-bill`, {
+    const result = await fetchJson<Order>(`/api/orders/${orderId}/generate-bill`, {
       method: 'POST',
-      headers: getHeaders(),
     });
-    return handleResponse<Order>(res);
+    notifyRealtimeMutation('GENERATE_ORDER_BILL', result);
+    return result;
   },
 
   markOrderPacked: async (orderId: string) => {
-    const res = await fetch(`/api/orders/${orderId}/mark-packed`, {
+    const result = await fetchJson<Order>(`/api/orders/${orderId}/mark-packed`, {
       method: 'POST',
-      headers: getHeaders(),
     });
-    return handleResponse<Order>(res);
+    notifyRealtimeMutation('MARK_ORDER_PACKED', result);
+    return result;
   },
 
   shipOrder: async (orderId: string) => {
-    const res = await fetch(`/api/orders/${orderId}/ship`, {
+    const result = await fetchJson<Order>(`/api/orders/${orderId}/ship`, {
       method: 'POST',
-      headers: getHeaders(),
     });
-    return handleResponse<Order>(res);
+    notifyRealtimeMutation('SHIP_ORDER', result);
+    return result;
   },
 
   assignDelivery: async (orderId: string, deliveryBoyId: string, reason?: string) => {
-    const res = await fetch(`/api/orders/${orderId}/assign`, {
+    const result = await fetchJson<Order>(`/api/orders/${orderId}/assign`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify({ deliveryBoyId, reason }),
     });
-    return handleResponse<Order>(res);
+    notifyRealtimeMutation('ASSIGN_DELIVERY', result);
+    return result;
   },
 
   acceptOrderDelivery: async (orderId: string) => {
-    const res = await fetch(`/api/orders/${orderId}/accept`, {
+    const result = await fetchJson<Order>(`/api/orders/${orderId}/accept`, {
       method: 'POST',
-      headers: getHeaders(),
     });
-    return handleResponse<Order>(res);
+    notifyRealtimeMutation('ACCEPT_ORDER_DELIVERY', result);
+    return result;
   },
 
   markOrderOutForDelivery: async (orderId: string) => {
-    const res = await fetch(`/api/orders/${orderId}/out-for-delivery`, {
+    const result = await fetchJson<Order>(`/api/orders/${orderId}/out-for-delivery`, {
       method: 'POST',
-      headers: getHeaders(),
     });
-    return handleResponse<Order>(res);
+    notifyRealtimeMutation('MARK_OUT_FOR_DELIVERY', result);
+    return result;
   },
 
   markOrderDelivered: async (orderId: string) => {
-    const res = await fetch(`/api/orders/${orderId}/deliver`, {
+    const result = await fetchJson<Order>(`/api/orders/${orderId}/deliver`, {
       method: 'POST',
-      headers: getHeaders(),
     });
-    return handleResponse<Order>(res);
+    notifyRealtimeMutation('MARK_ORDER_DELIVERED', result);
+    return result;
   },
 
   markOrderFailed: async (orderId: string, reason: string, remarks: string) => {
-    const res = await fetch(`/api/orders/${orderId}/fail`, {
+    const result = await fetchJson<Order>(`/api/orders/${orderId}/fail`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify({ reason, remarks }),
     });
-    return handleResponse<Order>(res);
+    notifyRealtimeMutation('MARK_ORDER_FAILED', result);
+    return result;
   },
 
   assignReturnDelivery: async (returnId: string, deliveryBoyId: string) => {
-    const res = await fetch(`/api/returns/${returnId}/assign`, {
+    const result = await fetchJson<ReturnRequest>(`/api/returns/${returnId}/assign`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify({ deliveryBoyId }),
     });
-    return handleResponse<ReturnRequest>(res);
+    notifyRealtimeMutation('ASSIGN_RETURN_DELIVERY', result);
+    return result;
   },
 
   updateReturnPickupStatus: async (returnId: string, status: ReturnRequest['status']) => {
-    const res = await fetch(`/api/returns/${returnId}/status`, {
+    const result = await fetchJson<ReturnRequest>(`/api/returns/${returnId}/status`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify({ status }),
     });
-    return handleResponse<ReturnRequest>(res);
+    notifyRealtimeMutation('UPDATE_RETURN_STATUS', result);
+    return result;
   },
 
   assignReplacementDelivery: async (repId: string, deliveryBoyId: string) => {
-    const res = await fetch(`/api/replacements/${repId}/assign`, {
+    const result = await fetchJson<ReplacementRequest>(`/api/replacements/${repId}/assign`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify({ deliveryBoyId }),
     });
-    return handleResponse<ReplacementRequest>(res);
+    notifyRealtimeMutation('ASSIGN_REPLACEMENT_DELIVERY', result);
+    return result;
   },
 
   updateReplacementDeliveryStatus: async (repId: string, status: ReplacementRequest['status']) => {
-    const res = await fetch(`/api/replacements/${repId}/status`, {
+    const result = await fetchJson<ReplacementRequest>(`/api/replacements/${repId}/status`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify({ status }),
     });
-    return handleResponse<ReplacementRequest>(res);
+    notifyRealtimeMutation('UPDATE_REPLACEMENT_STATUS', result);
+    return result;
   },
 
   // Auditor Return Orders API
@@ -656,48 +622,46 @@ export const api = {
         if (v !== undefined && v !== '') query.append(k, v);
       });
     }
-    const res = await fetch(`/api/auditor-returns?${query.toString()}`, { headers: getHeaders() });
-    return handleResponse<AuditorReturnOrder[]>(res);
+    return fetchJson<AuditorReturnOrder[]>(`/api/auditor-returns?${query.toString()}`);
   },
 
   getAuditorReturnOrderById: async (id: string) => {
-    const res = await fetch(`/api/auditor-returns/${id}`, { headers: getHeaders() });
-    return handleResponse<AuditorReturnOrder>(res);
+    return fetchJson<AuditorReturnOrder>(`/api/auditor-returns/${id}`);
   },
 
   createAuditorReturnOrder: async (data: Partial<AuditorReturnOrder>) => {
-    const res = await fetch('/api/auditor-returns/create', {
+    const result = await fetchJson<AuditorReturnOrder>('/api/auditor-returns/create', {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify(data),
     });
-    return handleResponse<AuditorReturnOrder>(res);
+    notifyRealtimeMutation('CREATE_AUDITOR_RETURN', result);
+    return result;
   },
 
   acceptAuditorReturnOrder: async (id: string) => {
-    const res = await fetch(`/api/auditor-returns/${id}/accept`, {
+    const result = await fetchJson<AuditorReturnOrder>(`/api/auditor-returns/${id}/accept`, {
       method: 'POST',
-      headers: getHeaders(),
     });
-    return handleResponse<AuditorReturnOrder>(res);
+    notifyRealtimeMutation('ACCEPT_AUDITOR_RETURN', result);
+    return result;
   },
 
   rejectAuditorReturnOrder: async (id: string, reason: string) => {
-    const res = await fetch(`/api/auditor-returns/${id}/reject`, {
+    const result = await fetchJson<AuditorReturnOrder>(`/api/auditor-returns/${id}/reject`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify({ reason }),
     });
-    return handleResponse<AuditorReturnOrder>(res);
+    notifyRealtimeMutation('REJECT_AUDITOR_RETURN', result);
+    return result;
   },
 
   assignDeliveryBoyToAuditorReturn: async (id: string, deliveryBoyId: string) => {
-    const res = await fetch(`/api/auditor-returns/${id}/assign`, {
+    const result = await fetchJson<AuditorReturnOrder>(`/api/auditor-returns/${id}/assign`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify({ deliveryBoyId }),
     });
-    return handleResponse<AuditorReturnOrder>(res);
+    notifyRealtimeMutation('ASSIGN_AUDITOR_RETURN_DELIVERY', result);
+    return result;
   },
 
   confirmDeliveryBoyReturnCollection: async (
@@ -709,12 +673,12 @@ export const api = {
       notes?: string;
     }
   ) => {
-    const res = await fetch(`/api/auditor-returns/${id}/collect`, {
+    const result = await fetchJson<AuditorReturnOrder>(`/api/auditor-returns/${id}/collect`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify(payload),
     });
-    return handleResponse<AuditorReturnOrder>(res);
+    notifyRealtimeMutation('COLLECT_AUDITOR_RETURN', result);
+    return result;
   },
 
   restoreAuditorReturnOrder: async (
@@ -727,12 +691,12 @@ export const api = {
       targetBatchId?: string;
     }
   ) => {
-    const res = await fetch(`/api/auditor-returns/${id}/restore`, {
+    const result = await fetchJson<AuditorReturnOrder>(`/api/auditor-returns/${id}/restore`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify(payload || {}),
     });
-    return handleResponse<AuditorReturnOrder>(res);
+    notifyRealtimeMutation('RESTORE_AUDITOR_RETURN', result);
+    return result;
   },
 
   advanceOrderStep: async (
@@ -744,59 +708,46 @@ export const api = {
       notes?: string;
     }
   ) => {
-    const res = await fetch(`/api/orders/${orderId}/advance-step`, {
+    const result = await fetchJson<Order>(`/api/orders/${orderId}/advance-step`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify(params),
     });
-    return handleResponse<Order>(res);
+    notifyRealtimeMutation('ADVANCE_ORDER_STEP', result);
+    return result;
   },
 
   updateOrderStatus: async (orderId: string, status: Order['orderStatus'], notes?: string) => {
-    const res = await fetch(`/api/orders/${orderId}/status`, {
+    const result = await fetchJson<Order>(`/api/orders/${orderId}/status`, {
       method: 'PUT',
-      headers: getHeaders(),
       body: JSON.stringify({ status, notes }),
     });
-    return handleResponse<Order>(res);
+    notifyRealtimeMutation('UPDATE_ORDER_STATUS', result);
+    return result;
   },
 
   overrideOrderStatus: async (orderId: string, status: Order['orderStatus'], reason: string) => {
-    const res = await fetch(`/api/orders/${orderId}/override`, {
+    const result = await fetchJson<Order>(`/api/orders/${orderId}/override`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify({ status, reason }),
     });
-    return handleResponse<Order>(res);
+    notifyRealtimeMutation('OVERRIDE_ORDER_STATUS', result);
+    return result;
   },
 
   // Pantry Card & Ledger
   getPantryCard: async (customerId: string) => {
-    return safeFetchJson(
-      `/api/pantry-card/${customerId}`,
-      { headers: getHeaders() },
-      () =>
-        clientStore.getPantryCardItems(customerId).map((it) => ({
-          ...it,
-          daysSinceDelivery: 5,
-          isReturnEligible: true,
-          isNearExpiry: false,
-          isExpired: false,
-        }))
-    );
+    return fetchJson<PantryCardItem[]>(`/api/pantry-card/${customerId}`);
   },
 
   getCustomerProductTimeline: async (customerId: string, productId?: string) => {
     const url = productId
       ? `/api/customers/${customerId}/product-timeline?productId=${productId}`
       : `/api/customers/${customerId}/product-timeline`;
-    const res = await fetch(url, { headers: getHeaders() });
-    return handleResponse<CustomerProductTimeline[]>(res);
+    return fetchJson<CustomerProductTimeline[]>(url);
   },
 
   getPantryLedger: async (customerId: string) => {
-    const res = await fetch(`/api/pantry-ledger/${customerId}`, { headers: getHeaders() });
-    return handleResponse<PantryCreditLedger[]>(res);
+    return fetchJson<PantryCreditLedger[]>(`/api/pantry-ledger/${customerId}`);
   },
 
   getPantryHoldings: async (filter?: {
@@ -813,17 +764,12 @@ export const api = {
     if (filter?.customerId) params.append('customerId', filter.customerId);
     if (filter?.search) params.append('search', filter.search);
 
-    const res = await fetch(`/api/pantry/active-holdings?${params.toString()}`, { headers: getHeaders() });
-    return handleResponse<CustomerPantryHoldingsResponse>(res);
+    return fetchJson<CustomerPantryHoldingsResponse>(`/api/pantry/active-holdings?${params.toString()}`);
   },
 
   // Returns
   getReturns: async () => {
-    return safeFetchJson(
-      '/api/returns',
-      { headers: getHeaders() },
-      () => clientStore.getReturns()
-    );
+    return fetchJson<ReturnRequest[]>('/api/returns');
   },
 
   requestReturn: async (payload: {
@@ -834,37 +780,34 @@ export const api = {
     initiatedBy: 'CUSTOMER' | 'AUDITOR' | 'ADMIN';
     initiatedById: string;
   }) => {
-    const res = await fetch('/api/returns', {
+    const result = await fetchJson<ReturnRequest>('/api/returns', {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify(payload),
     });
-    return handleResponse<ReturnRequest>(res);
+    notifyRealtimeMutation('REQUEST_RETURN', result);
+    return result;
   },
 
   approveReturn: async (returnId: string) => {
-    const res = await fetch(`/api/returns/${returnId}/approve`, {
+    const result = await fetchJson<ReturnRequest>(`/api/returns/${returnId}/approve`, {
       method: 'POST',
-      headers: getHeaders(),
     });
-    return handleResponse<ReturnRequest>(res);
+    notifyRealtimeMutation('APPROVE_RETURN', result);
+    return result;
   },
 
   rejectReturn: async (returnId: string, reason?: string) => {
-    const res = await fetch(`/api/returns/${returnId}/reject`, {
+    const result = await fetchJson<ReturnRequest>(`/api/returns/${returnId}/reject`, {
       method: 'POST',
-      headers: getHeaders(),
+      body: JSON.stringify({ reason }),
     });
-    return handleResponse<ReturnRequest>(res);
+    notifyRealtimeMutation('REJECT_RETURN', result);
+    return result;
   },
 
   // Replacements
   getReplacements: async () => {
-    return safeFetchJson(
-      '/api/replacements',
-      { headers: getHeaders() },
-      () => clientStore.getReplacements()
-    );
+    return fetchJson<ReplacementRequest[]>('/api/replacements');
   },
 
   requestReplacement: async (payload: {
@@ -875,45 +818,40 @@ export const api = {
     initiatedBy: 'CUSTOMER' | 'AUDITOR' | 'ADMIN';
     initiatedById: string;
   }) => {
-    const res = await fetch('/api/replacements', {
+    const result = await fetchJson<ReplacementRequest>('/api/replacements', {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify(payload),
     });
-    return handleResponse<ReplacementRequest>(res);
+    notifyRealtimeMutation('REQUEST_REPLACEMENT', result);
+    return result;
   },
 
   approveReplacement: async (repId: string, replacementBatchId?: string, assignedDeliveryBoyId?: string) => {
-    const res = await fetch(`/api/replacements/${repId}/approve`, {
+    const result = await fetchJson<ReplacementRequest>(`/api/replacements/${repId}/approve`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify({ replacementBatchId, assignedDeliveryBoyId }),
     });
-    return handleResponse<ReplacementRequest>(res);
+    notifyRealtimeMutation('APPROVE_REPLACEMENT', result);
+    return result;
   },
 
   rejectReplacement: async (repId: string, reason?: string) => {
-    const res = await fetch(`/api/replacements/${repId}/reject`, {
+    const result = await fetchJson<ReplacementRequest>(`/api/replacements/${repId}/reject`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify({ reason }),
     });
-    return handleResponse<ReplacementRequest>(res);
+    notifyRealtimeMutation('REJECT_REPLACEMENT', result);
+    return result;
   },
 
   // Auditor & Audit Workflow
   getAuditorChecks: async (customerId?: string) => {
     const url = customerId ? `/api/auditor-checks?customerId=${customerId}` : '/api/auditor-checks';
-    return safeFetchJson(
-      url,
-      { headers: getHeaders() },
-      () => clientStore.getAuditorChecks()
-    );
+    return fetchJson<AuditorCheck[]>(url);
   },
 
   getAuditById: async (id: string) => {
-    const res = await fetch(`/api/auditor-checks/${id}`, { headers: getHeaders() });
-    return handleResponse<AuditorCheck>(res);
+    return fetchJson<AuditorCheck>(`/api/auditor-checks/${id}`);
   },
 
   createAuditRequest: async (payload: {
@@ -923,28 +861,28 @@ export const api = {
     requestedTime?: string;
     purpose?: string;
   }) => {
-    const res = await fetch('/api/audits/request', {
+    const result = await fetchJson<AuditorCheck>('/api/audits/request', {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify(payload),
     });
-    return handleResponse<AuditorCheck>(res);
+    notifyRealtimeMutation('CREATE_AUDIT_REQUEST', result);
+    return result;
   },
 
   confirmAuditByCustomer: async (auditId: string) => {
-    const res = await fetch(`/api/audits/${auditId}/customer-confirm`, {
+    const result = await fetchJson<AuditorCheck>(`/api/audits/${auditId}/customer-confirm`, {
       method: 'POST',
-      headers: getHeaders(),
     });
-    return handleResponse<AuditorCheck>(res);
+    notifyRealtimeMutation('CONFIRM_AUDIT_BY_CUSTOMER', result);
+    return result;
   },
 
   startAuditCheck: async (auditId: string) => {
-    const res = await fetch(`/api/audits/${auditId}/start`, {
+    const result = await fetchJson<AuditorCheck>(`/api/audits/${auditId}/start`, {
       method: 'POST',
-      headers: getHeaders(),
     });
-    return handleResponse<AuditorCheck>(res);
+    notifyRealtimeMutation('START_AUDIT_CHECK', result);
+    return result;
   },
 
   verifyAuditItem: async (
@@ -963,12 +901,15 @@ export const api = {
       shouldDeductWallet?: boolean;
     }
   ) => {
-    const res = await fetch(`/api/audits/${auditId}/verify-item`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(payload),
-    });
-    return handleResponse<{ audit: AuditorCheck; walletTransaction?: WalletTransaction }>(res);
+    const result = await fetchJson<{ audit: AuditorCheck; walletTransaction?: WalletTransaction }>(
+      `/api/audits/${auditId}/verify-item`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
+    notifyRealtimeMutation('VERIFY_AUDIT_ITEM', result);
+    return result;
   },
 
   finishAuditCheck: async (
@@ -979,12 +920,12 @@ export const api = {
       customerSignatureStatus?: boolean;
     }
   ) => {
-    const res = await fetch(`/api/audits/${auditId}/finish`, {
+    const result = await fetchJson<AuditorCheck>(`/api/audits/${auditId}/finish`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify(payload),
     });
-    return handleResponse<AuditorCheck>(res);
+    notifyRealtimeMutation('FINISH_AUDIT_CHECK', result);
+    return result;
   },
 
   generateAuditBill: async (
@@ -1001,47 +942,38 @@ export const api = {
       }[];
     }
   ) => {
-    const res = await fetch(`/api/audits/${auditId}/generate-bill`, {
+    const result = await fetchJson<AuditorCheck>(`/api/audits/${auditId}/generate-bill`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify(payload),
     });
-    return handleResponse<AuditorCheck>(res);
+    notifyRealtimeMutation('GENERATE_AUDIT_BILL', result);
+    return result;
   },
 
   confirmAuditBill: async (auditId: string) => {
-    return safeFetchJson<AuditorCheck>(
-      `/api/audits/${auditId}/confirm-bill`,
-      {
-        method: 'POST',
-        headers: getHeaders(),
-      },
-      () => clientStore.confirmAuditBill(auditId)
-    );
+    const result = await fetchJson<AuditorCheck>(`/api/audits/${auditId}/confirm-bill`, {
+      method: 'POST',
+    });
+    notifyRealtimeMutation('CONFIRM_AUDIT_BILL', result);
+    return result;
   },
 
   disputeAuditBill: async (auditId: string, disputeRemarks: string) => {
-    return safeFetchJson<AuditorCheck>(
-      `/api/audits/${auditId}/dispute`,
-      {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ disputeRemarks }),
-      },
-      () => clientStore.disputeAuditBill(auditId, disputeRemarks)
-    );
+    const result = await fetchJson<AuditorCheck>(`/api/audits/${auditId}/dispute`, {
+      method: 'POST',
+      body: JSON.stringify({ disputeRemarks }),
+    });
+    notifyRealtimeMutation('DISPUTE_AUDIT_BILL', result);
+    return result;
   },
 
   rejectAuditBill: async (auditId: string, reason: string) => {
-    return safeFetchJson<AuditorCheck>(
-      `/api/audits/${auditId}/reject-bill`,
-      {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ disputeRemarks: reason, reason }),
-      },
-      () => clientStore.rejectAuditBill(auditId, reason)
-    );
+    const result = await fetchJson<AuditorCheck>(`/api/audits/${auditId}/reject-bill`, {
+      method: 'POST',
+      body: JSON.stringify({ disputeRemarks: reason, reason }),
+    });
+    notifyRealtimeMutation('REJECT_AUDIT_BILL', result);
+    return result;
   },
 
   adminReviseAuditBill: async (
@@ -1052,20 +984,16 @@ export const api = {
       itemsChecked?: any[];
     }
   ) => {
-    return safeFetchJson<AuditorCheck>(
-      `/api/audits/${auditId}/admin-revise`,
-      {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(payload),
-      },
-      () => clientStore.adminReviseAuditBill(auditId, payload)
-    );
+    const result = await fetchJson<AuditorCheck>(`/api/audits/${auditId}/admin-revise`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    notifyRealtimeMutation('REVISE_AUDIT_BILL', result);
+    return result;
   },
 
   getCustomerCreditLedger: async (customerId: string) => {
-    const res = await fetch(`/api/pantry-ledger/${customerId}`, { headers: getHeaders() });
-    return handleResponse<PantryCreditLedger[]>(res);
+    return fetchJson<PantryCreditLedger[]>(`/api/pantry-ledger/${customerId}`);
   },
 
   submitAuditorCheck: async (payload: {
@@ -1087,12 +1015,12 @@ export const api = {
     }[];
     overallRemarks?: string;
   }) => {
-    const res = await fetch('/api/auditor-checks', {
+    const result = await fetchJson<AuditorCheck>('/api/auditor-checks', {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify(payload),
     });
-    return handleResponse<AuditorCheck>(res);
+    notifyRealtimeMutation('SUBMIT_AUDITOR_CHECK', result);
+    return result;
   },
 
   submitAuditReport: async (payload: {
@@ -1116,7 +1044,7 @@ export const api = {
         : 'EXPIRED') as any,
       qtyAvailable: it.status === 'OK_AVAILABLE' ? 1 : 0,
       qtyMissing: it.status === 'NOT_AVAILABLE' ? 1 : 0,
-      qtyDamaged: (it.status === 'DAMAGED' || it.status === 'EXPIRED') ? 1 : 0,
+      qtyDamaged: it.status === 'DAMAGED' || it.status === 'EXPIRED' ? 1 : 0,
       qtyReturn: 0,
       qtyReplacement: 0,
       qtyPantryPay: 0,
@@ -1133,32 +1061,25 @@ export const api = {
 
   // Wallet Management
   getWalletBalance: async (customerId: string) => {
-    const res = await fetch(`/api/wallet/${customerId}`, { headers: getHeaders() });
-    return handleResponse<{ walletBalance: number; customer: Customer }>(res);
+    return fetchJson<{ walletBalance: number; customer: Customer }>(`/api/wallet/${customerId}`);
   },
 
   getWalletTransactions: async (customerId?: string) => {
     const url = customerId ? `/api/wallet-transactions?customerId=${customerId}` : '/api/wallet-transactions';
-    const res = await fetch(url, { headers: getHeaders() });
-    return handleResponse<WalletTransaction[]>(res);
+    return fetchJson<WalletTransaction[]>(url);
   },
 
   rechargeCustomerWallet: async (customerId: string, amount: number, reason: string) => {
-    const res = await fetch('/api/wallet/recharge', {
+    const result = await fetchJson<{ customer: Customer; transaction: WalletTransaction }>('/api/wallet/recharge', {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify({ customerId, amount, reason }),
     });
-    return handleResponse<{ customer: Customer; transaction: WalletTransaction }>(res);
+    notifyRealtimeMutation('RECHARGE_WALLET', result);
+    return result;
   },
 
   rechargeWallet: async (customerId: string, amount: number, reason: string) => {
-    const res = await fetch('/api/wallet/recharge', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ customerId, amount, reason }),
-    });
-    const data = await handleResponse<{ customer: Customer; transaction: WalletTransaction }>(res);
+    const data = await api.rechargeCustomerWallet(customerId, amount, reason);
     return {
       success: true,
       newBalance: data.customer.walletBalance,
@@ -1178,19 +1099,20 @@ export const api = {
     quantity?: number;
     unitPrice?: number;
   }) => {
-    const res = await fetch('/api/wallet/deduct', {
+    const result = await fetchJson<{ customer: Customer; transaction: WalletTransaction }>('/api/wallet/deduct', {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify(payload),
     });
-    return handleResponse<{ customer: Customer; transaction: WalletTransaction }>(res);
+    notifyRealtimeMutation('DEDUCT_WALLET', result);
+    return result;
   },
 
   // Wallet Recharge Requests (Customer / Auditor / Admin)
   getWalletRechargeRequests: async (customerId?: string) => {
-    const url = customerId ? `/api/wallet-recharge-requests?customerId=${customerId}` : '/api/wallet-recharge-requests';
-    const res = await fetch(url, { headers: getHeaders() });
-    return handleResponse<WalletRechargeRequest[]>(res);
+    const url = customerId
+      ? `/api/wallet-recharge-requests?customerId=${customerId}`
+      : '/api/wallet-recharge-requests';
+    return fetchJson<WalletRechargeRequest[]>(url);
   },
 
   createWalletRechargeRequest: async (payload: {
@@ -1202,40 +1124,42 @@ export const api = {
     transactionRef: string;
     notes?: string;
   }) => {
-    const res = await fetch('/api/wallet-recharge-requests', {
+    const result = await fetchJson<WalletRechargeRequest>('/api/wallet-recharge-requests', {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify(payload),
     });
-    return handleResponse<WalletRechargeRequest>(res);
+    notifyRealtimeMutation('CREATE_WALLET_RECHARGE_REQUEST', result);
+    return result;
   },
 
   confirmWalletRechargeRequest: async (id: string) => {
-    const res = await fetch(`/api/wallet-recharge-requests/${id}/confirm`, {
+    const result = await fetchJson<{
+      request: WalletRechargeRequest;
+      customer: Customer;
+      transaction: WalletTransaction;
+    }>(`/api/wallet-recharge-requests/${id}/confirm`, {
       method: 'POST',
-      headers: getHeaders(),
     });
-    return handleResponse<{ request: WalletRechargeRequest; customer: Customer; transaction: WalletTransaction }>(res);
+    notifyRealtimeMutation('CONFIRM_WALLET_RECHARGE_REQUEST', result);
+    return result;
   },
 
   rejectWalletRechargeRequest: async (id: string, reason?: string) => {
-    const res = await fetch(`/api/wallet-recharge-requests/${id}/reject`, {
+    const result = await fetchJson<WalletRechargeRequest>(`/api/wallet-recharge-requests/${id}/reject`, {
       method: 'POST',
-      headers: getHeaders(),
       body: JSON.stringify({ reason }),
     });
-    return handleResponse<WalletRechargeRequest>(res);
+    notifyRealtimeMutation('REJECT_WALLET_RECHARGE_REQUEST', result);
+    return result;
   },
 
   // Ledger & Logs
   getInventoryTransactions: async () => {
-    const res = await fetch('/api/inventory-transactions', { headers: getHeaders() });
-    return handleResponse<InventoryTransaction[]>(res);
+    return fetchJson<InventoryTransaction[]>('/api/inventory-transactions');
   },
 
   getAuditLogs: async () => {
-    const res = await fetch('/api/audit-logs', { headers: getHeaders() });
-    return handleResponse<AuditLog[]>(res);
+    return fetchJson<AuditLog[]>('/api/audit-logs');
   },
 
   // Pantry Pay
@@ -1252,139 +1176,107 @@ export const api = {
     isWalletRecharge?: boolean;
     quantity?: number;
   }) => {
-    return safeFetchJson<PantryPayment>(
-      '/api/pantry-payments',
-      {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(payload),
-      },
-      () => clientStore.createPantryPayment(payload)
-    );
+    const result = await fetchJson<PantryPayment>('/api/pantry-payments', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    notifyRealtimeMutation('CREATE_PANTRY_PAYMENT', result);
+    return result;
   },
 
   getCustomerPantryPayments: async (customerId: string) => {
-    return safeFetchJson<PantryPayment[]>(
-      `/api/pantry-payments/customer/${customerId}`,
-      { headers: getHeaders() },
-      () => clientStore.getCustomerPantryPayments(customerId)
-    );
+    return fetchJson<PantryPayment[]>(`/api/pantry-payments/customer/${customerId}`);
   },
 
   getAllPantryPayments: async () => {
-    return safeFetchJson<PantryPayment[]>(
-      '/api/pantry-payments',
-      { headers: getHeaders() },
-      () => clientStore.getAllPantryPayments()
-    );
+    return fetchJson<PantryPayment[]>('/api/pantry-payments');
   },
 
   getPantryPaymentById: async (paymentId: string) => {
-    return safeFetchJson<PantryPayment>(
-      `/api/pantry-payments/${paymentId}`,
-      { headers: getHeaders() },
-      () => clientStore.getPantryPaymentById(paymentId)
-    );
+    return fetchJson<PantryPayment>(`/api/pantry-payments/${paymentId}`);
   },
 
   confirmPantryPayment: async (paymentId: string, remarks?: string) => {
-    return safeFetchJson<PantryPayment>(
-      `/api/pantry-payments/${paymentId}/confirm`,
-      {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ remarks }),
-      },
-      () => clientStore.confirmPantryPayment(paymentId, remarks)
-    );
+    const result = await fetchJson<PantryPayment>(`/api/pantry-payments/${paymentId}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify({ remarks }),
+    });
+    notifyRealtimeMutation('CONFIRM_PANTRY_PAYMENT', result);
+    return result;
   },
 
   rejectPantryPayment: async (paymentId: string, reason?: string) => {
-    return safeFetchJson<PantryPayment>(
-      `/api/pantry-payments/${paymentId}/reject`,
-      {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ reason }),
-      },
-      () => clientStore.rejectPantryPayment(paymentId, reason)
-    );
+    const result = await fetchJson<PantryPayment>(`/api/pantry-payments/${paymentId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+    notifyRealtimeMutation('REJECT_PANTRY_PAYMENT', result);
+    return result;
   },
 
   // Settings
   getSettings: async () => {
-    return safeFetchJson(
-      '/api/settings',
-      { headers: getHeaders() },
-      () => clientStore.getSettings()
-    );
+    return fetchJson<AppSettings>('/api/settings');
   },
 
-  updateSettings: async (settings: Partial<AppSettings> & { maxReturnWindowDays?: number; nearExpiryDaysThreshold?: number }) => {
+  updateSettings: async (
+    settings: Partial<AppSettings> & { maxReturnWindowDays?: number; nearExpiryDaysThreshold?: number }
+  ) => {
     const formatted: Partial<AppSettings> = {
       ...settings,
       pantryReturnWindowDays: settings.maxReturnWindowDays || settings.pantryReturnWindowDays,
       nearExpiryDays: settings.nearExpiryDaysThreshold || settings.nearExpiryDays,
     };
-    return safeFetchJson(
-      '/api/settings',
-      {
-        method: 'PUT',
-        headers: getHeaders(),
-        body: JSON.stringify(formatted),
-      },
-      () => clientStore.updateSettings(formatted)
-    );
+    const result = await fetchJson<AppSettings>('/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify(formatted),
+    });
+    notifyRealtimeMutation('UPDATE_SETTINGS', result);
+    return result;
   },
 
   testApiIntegration: async (
     category: 'payment' | 'sms' | 'whatsApp' | 'googleMaps' | 'aiGemini' | 'cloudStorage' | 'supabase',
     config: any
   ) => {
-    const res = await fetch('/api/settings/test-integration', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ category, config }),
-    });
-    return handleResponse<{ success: boolean; message: string; details?: any; timestamp: string }>(res);
+    return fetchJson<{ success: boolean; message: string; details?: any; timestamp: string }>(
+      '/api/settings/test-integration',
+      {
+        method: 'POST',
+        body: JSON.stringify({ category, config }),
+      }
+    );
   },
 
   // Supabase Cloud Database Integration
   getSupabaseStatus: async () => {
-    const res = await fetch('/api/supabase/status', { headers: getHeaders() });
-    return handleResponse<SupabaseStatusInfo>(res);
+    return fetchJson<SupabaseStatusInfo>('/api/supabase/status');
   },
 
   testSupabase: async (config?: { url?: string; anonKey?: string; projectRef?: string; dbUrl?: string }) => {
-    const res = await fetch('/api/supabase/test', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(config || {}),
-    });
-    return handleResponse<{
+    return fetchJson<{
       success: boolean;
       message: string;
       latencyMs: number;
       projectRef: string;
       url: string;
       details?: any;
-    }>(res);
+    }>('/api/supabase/test', {
+      method: 'POST',
+      body: JSON.stringify(config || {}),
+    });
   },
 
   syncPushSupabase: async () => {
-    const res = await fetch('/api/supabase/sync-push', {
+    return fetchJson<SupabaseSyncResult>('/api/supabase/sync-push', {
       method: 'POST',
-      headers: getHeaders(),
     });
-    return handleResponse<SupabaseSyncResult>(res);
   },
 
   syncPullSupabase: async () => {
-    const res = await fetch('/api/supabase/sync-pull', {
+    return fetchJson<{ success: boolean; message: string }>('/api/supabase/sync-pull', {
       method: 'POST',
-      headers: getHeaders(),
     });
-    return handleResponse<{ success: boolean; message: string }>(res);
   },
 
   getSupabaseSqlSchema: async () => {
@@ -1395,27 +1287,28 @@ export const api = {
 
   // Dev Reset
   resetSeeds: async () => {
-    const res = await fetch('/api/dev/reset-seeds', {
+    const result = await fetchJson<{ success: boolean; message: string }>('/api/dev/reset-seeds', {
       method: 'POST',
-      headers: getHeaders(),
     });
-    return handleResponse<{ success: boolean; message: string }>(res);
+    notifyRealtimeMutation('RESET_SEEDS', result);
+    return result;
   },
 
   // Mobile Uniqueness & Database Integrity Validation
   checkMobileAvailability: async (mobile: string, excludeId?: string) => {
     const params = new URLSearchParams({ mobile });
     if (excludeId) params.append('excludeId', excludeId);
-    return safeFetchJson(
-      `/api/validation/check-mobile?${params.toString()}`,
-      { headers: getHeaders() },
-      () => clientStore.checkMobileAvailability(mobile, excludeId)
-    );
+    return fetchJson<{
+      available: boolean;
+      normalized: string;
+      message?: string;
+      error?: string;
+      conflict?: any;
+    }>(`/api/validation/check-mobile?${params.toString()}`);
   },
 
   getDatabaseIntegrity: async () => {
-    const res = await fetch('/api/database/integrity-check', { headers: getHeaders() });
-    return handleResponse<{
+    return fetchJson<{
       healthy: boolean;
       fixedCount: number;
       issues: string[];
@@ -1426,6 +1319,6 @@ export const api = {
         usersCount: number;
         uniqueMobilesCount: number;
       };
-    }>(res);
+    }>('/api/database/integrity-check');
   },
 };

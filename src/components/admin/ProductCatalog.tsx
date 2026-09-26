@@ -77,6 +77,10 @@ export const ProductCatalog: React.FC = () => {
 
   useEffect(() => {
     fetchProducts();
+    const unsubscribe = api.subscribeRealtime(() => {
+      fetchProducts();
+    });
+    return () => unsubscribe();
   }, []);
 
   const openCreateModal = () => {
