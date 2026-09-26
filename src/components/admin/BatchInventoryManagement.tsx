@@ -129,8 +129,10 @@ export const BatchInventoryManagement: React.FC<BatchInventoryManagementProps> =
     batch: ProductBatch;
   } | null>(null);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (isSilent = false) => {
+    if (!isSilent) {
+      setLoading(true);
+    }
     try {
       const [bData, pData] = await Promise.all([api.getBatches(), api.getProducts()]);
       setBatches(bData);
@@ -145,7 +147,7 @@ export const BatchInventoryManagement: React.FC<BatchInventoryManagementProps> =
   useEffect(() => {
     fetchData();
     const unsubscribe = api.subscribeRealtime(() => {
-      fetchData();
+      fetchData(true);
     });
     return () => unsubscribe();
   }, []);
@@ -372,7 +374,7 @@ export const BatchInventoryManagement: React.FC<BatchInventoryManagementProps> =
 
           <div className="flex items-center gap-2">
             <button
-              onClick={fetchData}
+              onClick={() => fetchData()}
               className="p-2 border border-slate-300 hover:bg-slate-50 rounded-lg text-slate-600 text-xs transition cursor-pointer"
               title="Refresh Inventory"
             >

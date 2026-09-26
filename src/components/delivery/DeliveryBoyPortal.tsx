@@ -51,10 +51,12 @@ export const DeliveryBoyPortal: React.FC = () => {
   const [collectionNotes, setCollectionNotes] = useState('');
   const [submittingCollection, setSubmittingCollection] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = async (isSilent = false) => {
     if (!deliveryBoy && !user?.deliveryBoyId) return;
     const dbId = deliveryBoy?.id || user?.deliveryBoyId || '';
-    setLoading(true);
+    if (!isSilent) {
+      setLoading(true);
+    }
     try {
       const [allOrders, allReturns, allReps, allAudReturns] = await Promise.all([
         api.getOrders({ deliveryBoyId: dbId }),
@@ -88,7 +90,7 @@ export const DeliveryBoyPortal: React.FC = () => {
   useEffect(() => {
     fetchData();
     const unsubscribe = api.subscribeRealtime(() => {
-      fetchData();
+      fetchData(true);
     });
     return () => unsubscribe();
   }, [deliveryBoy?.id, user?.deliveryBoyId]);
@@ -346,7 +348,7 @@ export const DeliveryBoyPortal: React.FC = () => {
             <span>Assigned Deliveries ({activeOrders.length})</span>
           </h3>
           <button
-            onClick={fetchData}
+            onClick={() => fetchData()}
             disabled={loading}
             className="p-1 text-slate-500 hover:text-slate-800 transition rounded-lg hover:bg-slate-100 cursor-pointer"
           >

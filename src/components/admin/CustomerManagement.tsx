@@ -201,8 +201,10 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ onConduc
   const [rechargeReason, setRechargeReason] = useState('Customer Advance Deposit / Prepaid Balance');
   const [recharging, setRecharging] = useState(false);
 
-  const fetchCustomers = async () => {
-    setLoading(true);
+  const fetchCustomers = async (isSilent = false) => {
+    if (!isSilent) {
+      setLoading(true);
+    }
     try {
       const data = await api.getCustomers();
       setCustomers(data);
@@ -216,7 +218,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ onConduc
   useEffect(() => {
     fetchCustomers();
     const unsubscribe = api.subscribeRealtime(() => {
-      fetchCustomers();
+      fetchCustomers(true);
       if (selectedCustomer) {
         openCustomer360(selectedCustomer);
       }

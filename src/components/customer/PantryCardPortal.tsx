@@ -125,9 +125,11 @@ export const PantryCardPortal: React.FC = () => {
     pantryLimit: 2000,
   });
 
-  const fetchData = async () => {
+  const fetchData = async (isSilent = false) => {
     if (!user || !customer) return;
-    setLoading(true);
+    if (!isSilent) {
+      setLoading(true);
+    }
     try {
       const [items, ledg, allReturns, allReps, allCusts, wTxns, aChecks, userOrders] = await Promise.all([
         api.getPantryCard(customer.id),
@@ -175,7 +177,7 @@ export const PantryCardPortal: React.FC = () => {
   useEffect(() => {
     fetchData();
     const unsubscribe = api.subscribeRealtime(() => {
-      fetchData();
+      fetchData(true);
     });
     return () => unsubscribe();
   }, [customer?.id]);
@@ -747,7 +749,7 @@ export const PantryCardPortal: React.FC = () => {
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
-                onClick={fetchData}
+                onClick={() => fetchData()}
                 className="px-3.5 py-2 bg-purple-700/80 hover:bg-purple-600 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs border border-purple-500/30"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />

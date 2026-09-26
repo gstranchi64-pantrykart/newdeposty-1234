@@ -580,10 +580,39 @@ export class BusinessService {
   static verifyMobile(mobile: string): { user: User; customer?: Customer; deliveryBoy?: DeliveryBoy; auditor?: Auditor } {
     const cleanMobile = normalizeMobile(mobile);
     const db = store.getDb();
-    const user = db.users.find((u) => normalizeMobile(u.mobile) === cleanMobile && u.status === 'ACTIVE');
+    let user = db.users.find((u) => normalizeMobile(u.mobile) === cleanMobile && u.status === 'ACTIVE');
 
     if (!user) {
-      throw new Error('This mobile number is not registered. Please contact administrator.');
+      if (cleanMobile.length !== 10) {
+        throw new Error('Please enter a valid 10-digit mobile number.');
+      }
+      const conflict = this.findExistingEntityByMobile(cleanMobile);
+      if (conflict) {
+        throw new Error(conflict.message);
+      }
+      
+      // Auto-register customer and user
+      const systemAdminUser: User = {
+        id: 'USR-SYSTEM',
+        name: 'System Registrar',
+        mobile: '0000000000',
+        role: 'ADMIN',
+        status: 'ACTIVE',
+        createdAt: getToday(),
+        updatedAt: getToday()
+      };
+      const newCust = this.createCustomer({
+        fullName: 'New Customer',
+        mobile: cleanMobile,
+        walletBalance: 1000,
+        isPantryAllowed: true,
+      }, systemAdminUser);
+      
+      // Find the newly registered user
+      user = db.users.find((u) => u.customerId === newCust.id);
+      if (!user) {
+        throw new Error('Database error during auto-registration. Please try again.');
+      }
     }
 
     let customer: Customer | undefined;

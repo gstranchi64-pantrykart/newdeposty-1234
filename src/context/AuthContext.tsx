@@ -50,13 +50,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               localStorage.setItem('pm_customer', JSON.stringify(freshCustomer));
             } catch {}
           }
-        } else {
-          // Default start as Admin for easy exploration or let user see login
-          // We'll restore Admin by default or provide quick switcher
-          const initialMobile = '9876543210';
-          const authData = await api.verifyMobile(initialMobile);
-          setUser(authData.user);
-          localStorage.setItem('pm_user', JSON.stringify(authData.user));
         }
       } catch (err) {
         console.warn('Session restore note:', err);

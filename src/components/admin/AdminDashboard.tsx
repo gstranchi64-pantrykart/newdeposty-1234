@@ -38,8 +38,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [localSummary, setLocalSummary] = useState<DashboardSummary | null>(propSummary || null);
   const [loading, setLoading] = useState(!propSummary);
 
-  const fetchSummary = async () => {
-    setLoading(true);
+  const fetchSummary = async (isSilent = false) => {
+    if (!isSilent && !localSummary) {
+      setLoading(true);
+    }
     try {
       const data = await api.getDashboardSummary();
       setLocalSummary(data);
@@ -54,7 +56,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   useEffect(() => {
     fetchSummary();
     const unsubscribe = api.subscribeRealtime(() => {
-      fetchSummary();
+      fetchSummary(true);
     });
     return () => unsubscribe();
   }, []);
@@ -143,7 +145,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <span>Theme: {currentTheme.name.split('(')[0]}</span>
           </button>
           <button
-            onClick={fetchSummary}
+            onClick={() => fetchSummary()}
             className="p-2 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs transition cursor-pointer"
             title="Refresh Real-time Data"
           >

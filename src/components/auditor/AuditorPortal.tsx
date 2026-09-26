@@ -173,8 +173,10 @@ export const AuditorPortal: React.FC = () => {
   const [newHouseSaving, setNewHouseSaving] = useState(false);
   const [existingHouseSearch, setExistingHouseSearch] = useState('');
 
-  const fetchCustomersAndPastAudits = async () => {
-    setLoading(true);
+  const fetchCustomersAndPastAudits = async (isSilent = false) => {
+    if (!isSilent) {
+      setLoading(true);
+    }
     try {
       const myAudId = currentAuditorProfile?.id || auditor?.id || user?.auditorId || '';
       const [cList, chkList, pPayList, audList, audRetList] = await Promise.all([
@@ -348,7 +350,7 @@ export const AuditorPortal: React.FC = () => {
   useEffect(() => {
     fetchCustomersAndPastAudits();
     const unsubscribe = api.subscribeRealtime(() => {
-      fetchCustomersAndPastAudits();
+      fetchCustomersAndPastAudits(true);
     });
     return () => unsubscribe();
   }, []);
@@ -2975,7 +2977,7 @@ export const AuditorPortal: React.FC = () => {
             </div>
 
             <button
-              onClick={fetchCustomersAndPastAudits}
+              onClick={() => fetchCustomersAndPastAudits()}
               className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />

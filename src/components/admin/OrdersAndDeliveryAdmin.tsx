@@ -283,8 +283,10 @@ export const OrdersAndDeliveryAdmin: React.FC<OrdersAndDeliveryAdminProps> = ({
   const [orderModalView, setOrderModalView] = useState<'DETAILS' | 'BILL' | 'IMAGES'>('DETAILS');
   const [previewImageModal, setPreviewImageModal] = useState<{ url: string; title: string; subtitle?: string } | null>(null);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (isSilent = false) => {
+    if (!isSilent) {
+      setLoading(true);
+    }
     try {
       const [ordList, dbList, audList, retList, repList, bList, prodList, logList, custList, chkList] = await Promise.all([
         api.getOrders(),
@@ -325,7 +327,7 @@ export const OrdersAndDeliveryAdmin: React.FC<OrdersAndDeliveryAdminProps> = ({
   useEffect(() => {
     fetchData();
     const unsubscribe = api.subscribeRealtime(() => {
-      fetchData();
+      fetchData(true);
     });
     return () => unsubscribe();
   }, [initialFilter]);
@@ -939,7 +941,7 @@ export const OrdersAndDeliveryAdmin: React.FC<OrdersAndDeliveryAdminProps> = ({
 
           <div className="flex items-center gap-2 flex-wrap">
             <button
-              onClick={fetchData}
+              onClick={() => fetchData()}
               className="p-2 border border-slate-300 hover:bg-slate-50 rounded-lg text-slate-600 text-xs transition cursor-pointer flex items-center gap-1 font-semibold"
               title="Refresh Logs"
             >

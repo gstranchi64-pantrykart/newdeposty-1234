@@ -41,9 +41,11 @@ export const CustomerOrdersHistory: React.FC = () => {
   const [selectedAuditForView, setSelectedAuditForView] = useState<AuditorCheck | null>(null);
   const [selectedOrderForBill, setSelectedOrderForBill] = useState<Order | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = async (isSilent = false) => {
     if (!customer) return;
-    setLoading(true);
+    if (!isSilent) {
+      setLoading(true);
+    }
     try {
       const [orderList, auditList, allLogs] = await Promise.all([
         api.getOrders({ customerId: customer.id }),
@@ -73,7 +75,7 @@ export const CustomerOrdersHistory: React.FC = () => {
   useEffect(() => {
     fetchData();
     const unsubscribe = api.subscribeRealtime(() => {
-      fetchData();
+      fetchData(true);
     });
     return () => unsubscribe();
   }, [customer?.id]);

@@ -63,8 +63,10 @@ export const ProductCatalog: React.FC = () => {
     ] as [string, string, string, string],
   });
 
-  const fetchProducts = async () => {
-    setLoading(true);
+  const fetchProducts = async (isSilent = false) => {
+    if (!isSilent) {
+      setLoading(true);
+    }
     try {
       const list = await api.getProducts(false);
       setProducts(list);
@@ -78,7 +80,7 @@ export const ProductCatalog: React.FC = () => {
   useEffect(() => {
     fetchProducts();
     const unsubscribe = api.subscribeRealtime(() => {
-      fetchProducts();
+      fetchProducts(true);
     });
     return () => unsubscribe();
   }, []);
