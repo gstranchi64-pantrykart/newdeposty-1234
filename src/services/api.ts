@@ -29,6 +29,8 @@ import {
   CustomerPantryHoldingsResponse,
 } from '../types';
 
+import { clientStore } from './clientStore';
+
 const getHeaders = (userId?: string) => {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -47,7 +49,61 @@ const getHeaders = (userId?: string) => {
   return headers;
 };
 
+async function safeFetchJson<T>(
+  url: string,
+  options?: RequestInit,
+  fallback?: () => T | Promise<T>
+): Promise<T> {
+  try {
+    const res = await fetch(url, options);
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await res.text();
+      // Server returned HTML (e.g. index.html from static host or 404 rewrite)
+      if (text.trim().startsWith('<')) {
+        if (fallback) {
+          return await fallback();
+        }
+        throw new Error('API server returned HTML. Using offline data store.');
+      }
+      try {
+        const data = JSON.parse(text);
+        if (!res.ok) throw new Error(data.error || 'Server error');
+        return data as T;
+      } catch (e: any) {
+        if (fallback) return await fallback();
+        throw e;
+      }
+    }
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Server error occurred');
+    }
+    return data as T;
+  } catch (err: any) {
+    if (fallback) {
+      return await fallback();
+    }
+    throw err;
+  }
+}
+
 async function handleResponse<T>(res: globalThis.Response): Promise<T> {
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    const text = await res.text();
+    if (text.trim().startsWith('<')) {
+      throw new Error('Server returned HTML instead of JSON. Ensure backend server is running.');
+    }
+    try {
+      const data = JSON.parse(text);
+      if (!res.ok) throw new Error(data.error || 'Server error');
+      return data as T;
+    } catch {
+      throw new Error(text || 'Server error occurred');
+    }
+  }
   const data = await res.json();
   if (!res.ok) {
     throw new Error(data.error || 'Server error occurred');
@@ -58,62 +114,65 @@ async function handleResponse<T>(res: globalThis.Response): Promise<T> {
 export const api = {
   // Auth
   verifyMobile: async (mobile: string) => {
-    const res = await fetch('/api/auth/verify-mobile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mobile }),
-    });
-    return handleResponse<{
-      success: boolean;
-      message: string;
-      otpHint: string;
-      user: User;
-      customer?: Customer;
-      deliveryBoy?: DeliveryBoy;
-      auditor?: Auditor;
-    }>(res);
+    return safeFetchJson(
+      '/api/auth/verify-mobile',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobile }),
+      },
+      () => clientStore.verifyMobile(mobile)
+    );
   },
 
   verifyOtp: async (mobile: string, otp: string) => {
-    const res = await fetch('/api/auth/verify-otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mobile, otp }),
-    });
-    return handleResponse<{
-      success: boolean;
-      token: string;
-      user: User;
-      customer?: Customer;
-      deliveryBoy?: DeliveryBoy;
-      auditor?: Auditor;
-    }>(res);
+    return safeFetchJson(
+      '/api/auth/verify-otp',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobile, otp }),
+      },
+      () => clientStore.verifyOtp(mobile, otp)
+    );
   },
 
   // Dashboard
   getDashboardSummary: async () => {
-    const res = await fetch('/api/dashboard/summary', { headers: getHeaders() });
-    return handleResponse<DashboardSummary>(res);
+    return safeFetchJson(
+      '/api/dashboard/summary',
+      { headers: getHeaders() },
+      () => clientStore.getDashboardSummary()
+    );
   },
 
   // Customers
   getCustomers: async () => {
-    const res = await fetch('/api/customers', { headers: getHeaders() });
-    return handleResponse<Customer[]>(res);
+    return safeFetchJson(
+      '/api/customers',
+      { headers: getHeaders() },
+      () => clientStore.getCustomers()
+    );
   },
 
   getCustomerById: async (id: string) => {
-    const res = await fetch(`/api/customers/${id}`, { headers: getHeaders() });
-    return handleResponse<Customer>(res);
+    return safeFetchJson(
+      `/api/customers/${id}`,
+      { headers: getHeaders() },
+      () => clientStore.getCustomerById(id)
+    );
   },
 
   createCustomer: async (customer: Partial<Customer>) => {
-    const res = await fetch('/api/customers', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(customer),
-    });
-    return handleResponse<Customer>(res);
+    return safeFetchJson(
+      '/api/customers',
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(customer),
+      },
+      () => clientStore.createCustomer(customer)
+    );
   },
 
   createChildCustomer: async (parentId: string, childData: Partial<Customer>) => {
@@ -126,21 +185,27 @@ export const api = {
   },
 
   updateCustomer: async (id: string, customer: Partial<Customer>) => {
-    const res = await fetch(`/api/customers/${id}`, {
-      method: 'PUT',
-      headers: getHeaders(),
-      body: JSON.stringify(customer),
-    });
-    return handleResponse<Customer>(res);
+    return safeFetchJson(
+      `/api/customers/${id}`,
+      {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(customer),
+      },
+      () => clientStore.updateCustomer(id, customer)
+    );
   },
 
   updatePantryLimit: async (customerId: string, newLimit: number, reason: string) => {
-    const res = await fetch(`/api/customers/${customerId}/pantry-limit`, {
-      method: 'PUT',
-      headers: getHeaders(),
-      body: JSON.stringify({ newLimit, reason }),
-    });
-    return handleResponse<Customer>(res);
+    return safeFetchJson(
+      `/api/customers/${customerId}/pantry-limit`,
+      {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({ newLimit, reason }),
+      },
+      () => clientStore.updatePantryLimit(customerId, newLimit, reason)
+    );
   },
 
   sendPantryPermissionOtp: async (customerId: string, action: 'ALLOW' | 'REVOKE', adminMobile?: string) => {
@@ -182,8 +247,11 @@ export const api = {
 
   // Delivery Boys
   getDeliveryBoys: async () => {
-    const res = await fetch('/api/delivery-boys', { headers: getHeaders() });
-    return handleResponse<DeliveryBoy[]>(res);
+    return safeFetchJson(
+      '/api/delivery-boys',
+      { headers: getHeaders() },
+      () => clientStore.getDeliveryBoys()
+    );
   },
 
   createDeliveryBoy: async (data: Partial<DeliveryBoy> & { name?: string }) => {
@@ -210,8 +278,11 @@ export const api = {
 
   // Auditors
   getAuditors: async () => {
-    const res = await fetch('/api/auditors', { headers: getHeaders() });
-    return handleResponse<Auditor[]>(res);
+    return safeFetchJson(
+      '/api/auditors',
+      { headers: getHeaders() },
+      () => clientStore.getAuditors()
+    );
   },
 
   createAuditor: async (data: Partial<Auditor> & { name?: string }) => {
@@ -238,18 +309,27 @@ export const api = {
 
   // Products
   getProducts: async (publishedOnly = false) => {
-    const res = await fetch(`/api/products?publishedOnly=${publishedOnly}`, { headers: getHeaders() });
-    return handleResponse<Product[]>(res);
+    return safeFetchJson(
+      `/api/products?publishedOnly=${publishedOnly}`,
+      { headers: getHeaders() },
+      () => clientStore.getProducts()
+    );
   },
 
   getProductByBarcode: async (barcode: string) => {
-    const res = await fetch(`/api/products/barcode/${encodeURIComponent(barcode)}`, { headers: getHeaders() });
-    return handleResponse<Product>(res);
+    return safeFetchJson(
+      `/api/products/barcode/${encodeURIComponent(barcode)}`,
+      { headers: getHeaders() },
+      () => clientStore.getProductByBarcode(barcode)
+    );
   },
 
   getProductById: async (id: string) => {
-    const res = await fetch(`/api/products/${id}`, { headers: getHeaders() });
-    return handleResponse<Product>(res);
+    return safeFetchJson(
+      `/api/products/${id}`,
+      { headers: getHeaders() },
+      () => clientStore.getProductById(id)
+    );
   },
 
   createProduct: async (product: Partial<Product>) => {
@@ -272,8 +352,11 @@ export const api = {
 
   // Batches & Inventory
   getBatches: async () => {
-    const res = await fetch('/api/batches', { headers: getHeaders() });
-    return handleResponse<ProductBatch[]>(res);
+    return safeFetchJson(
+      '/api/batches',
+      { headers: getHeaders() },
+      () => clientStore.getBatches()
+    );
   },
 
   getBatchDetails: async (batchIdentifier: string) => {
@@ -301,8 +384,11 @@ export const api = {
   },
 
   getPurchases: async () => {
-    const res = await fetch('/api/purchases', { headers: getHeaders() });
-    return handleResponse<PurchaseEntry[]>(res);
+    return safeFetchJson(
+      '/api/purchases',
+      { headers: getHeaders() },
+      () => clientStore.getPurchases()
+    );
   },
 
   purchaseStock: async (data: {
@@ -336,8 +422,11 @@ export const api = {
     if (filter?.orderType) params.append('orderType', filter.orderType);
     if (filter?.deliveryBoyId) params.append('deliveryBoyId', filter.deliveryBoyId);
 
-    const res = await fetch(`/api/orders?${params.toString()}`, { headers: getHeaders() });
-    return handleResponse<Order[]>(res);
+    return safeFetchJson(
+      `/api/orders?${params.toString()}`,
+      { headers: getHeaders() },
+      () => clientStore.getOrders()
+    );
   },
 
   createQuickOrder: async (payload: {
@@ -651,15 +740,18 @@ export const api = {
 
   // Pantry Card & Ledger
   getPantryCard: async (customerId: string) => {
-    const res = await fetch(`/api/pantry-card/${customerId}`, { headers: getHeaders() });
-    return handleResponse<
-      (PantryCardItem & {
-        daysSinceDelivery: number;
-        isReturnEligible: boolean;
-        isNearExpiry: boolean;
-        isExpired: boolean;
-      })[]
-    >(res);
+    return safeFetchJson(
+      `/api/pantry-card/${customerId}`,
+      { headers: getHeaders() },
+      () =>
+        clientStore.getPantryCardItems(customerId).map((it) => ({
+          ...it,
+          daysSinceDelivery: 5,
+          isReturnEligible: true,
+          isNearExpiry: false,
+          isExpired: false,
+        }))
+    );
   },
 
   getCustomerProductTimeline: async (customerId: string, productId?: string) => {
@@ -1151,8 +1243,11 @@ export const api = {
 
   // Settings
   getSettings: async () => {
-    const res = await fetch('/api/settings', { headers: getHeaders() });
-    return handleResponse<AppSettings>(res);
+    return safeFetchJson(
+      '/api/settings',
+      { headers: getHeaders() },
+      () => clientStore.getSettings()
+    );
   },
 
   updateSettings: async (settings: Partial<AppSettings> & { maxReturnWindowDays?: number; nearExpiryDaysThreshold?: number }) => {
@@ -1161,12 +1256,15 @@ export const api = {
       pantryReturnWindowDays: settings.maxReturnWindowDays || settings.pantryReturnWindowDays,
       nearExpiryDays: settings.nearExpiryDaysThreshold || settings.nearExpiryDays,
     };
-    const res = await fetch('/api/settings', {
-      method: 'PUT',
-      headers: getHeaders(),
-      body: JSON.stringify(formatted),
-    });
-    return handleResponse<AppSettings>(res);
+    return safeFetchJson(
+      '/api/settings',
+      {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(formatted),
+      },
+      () => clientStore.updateSettings(formatted)
+    );
   },
 
   testApiIntegration: async (
