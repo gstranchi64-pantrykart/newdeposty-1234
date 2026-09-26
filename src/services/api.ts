@@ -259,21 +259,27 @@ export const api = {
       fullName: data.fullName || (data as any).name || 'Delivery Partner',
       ...data,
     };
-    const res = await fetch('/api/delivery-boys', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(formatted),
-    });
-    return handleResponse<DeliveryBoy>(res);
+    return safeFetchJson(
+      '/api/delivery-boys',
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(formatted),
+      },
+      () => clientStore.createDeliveryBoy(formatted)
+    );
   },
 
   updateDeliveryBoy: async (id: string, data: Partial<DeliveryBoy>) => {
-    const res = await fetch(`/api/delivery-boys/${id}`, {
-      method: 'PUT',
-      headers: getHeaders(),
-      body: JSON.stringify(data),
-    });
-    return handleResponse<DeliveryBoy>(res);
+    return safeFetchJson(
+      `/api/delivery-boys/${id}`,
+      {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      },
+      () => clientStore.updateDeliveryBoy(id, data)
+    );
   },
 
   // Auditors
@@ -290,21 +296,27 @@ export const api = {
       fullName: data.fullName || (data as any).name || 'Field Auditor',
       ...data,
     };
-    const res = await fetch('/api/auditors', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(formatted),
-    });
-    return handleResponse<Auditor>(res);
+    return safeFetchJson(
+      '/api/auditors',
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(formatted),
+      },
+      () => clientStore.createAuditor(formatted)
+    );
   },
 
   updateAuditor: async (id: string, data: Partial<Auditor>) => {
-    const res = await fetch(`/api/auditors/${id}`, {
-      method: 'PUT',
-      headers: getHeaders(),
-      body: JSON.stringify(data),
-    });
-    return handleResponse<Auditor>(res);
+    return safeFetchJson(
+      `/api/auditors/${id}`,
+      {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      },
+      () => clientStore.updateAuditor(id, data)
+    );
   },
 
   // Products
@@ -787,8 +799,11 @@ export const api = {
 
   // Returns
   getReturns: async () => {
-    const res = await fetch('/api/returns', { headers: getHeaders() });
-    return handleResponse<ReturnRequest[]>(res);
+    return safeFetchJson(
+      '/api/returns',
+      { headers: getHeaders() },
+      () => clientStore.getReturns()
+    );
   },
 
   requestReturn: async (payload: {
@@ -819,15 +834,17 @@ export const api = {
     const res = await fetch(`/api/returns/${returnId}/reject`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ reason }),
     });
     return handleResponse<ReturnRequest>(res);
   },
 
   // Replacements
   getReplacements: async () => {
-    const res = await fetch('/api/replacements', { headers: getHeaders() });
-    return handleResponse<ReplacementRequest[]>(res);
+    return safeFetchJson(
+      '/api/replacements',
+      { headers: getHeaders() },
+      () => clientStore.getReplacements()
+    );
   },
 
   requestReplacement: async (payload: {
@@ -867,8 +884,11 @@ export const api = {
   // Auditor & Audit Workflow
   getAuditorChecks: async (customerId?: string) => {
     const url = customerId ? `/api/auditor-checks?customerId=${customerId}` : '/api/auditor-checks';
-    const res = await fetch(url, { headers: getHeaders() });
-    return handleResponse<AuditorCheck[]>(res);
+    return safeFetchJson(
+      url,
+      { headers: getHeaders() },
+      () => clientStore.getAuditorChecks()
+    );
   },
 
   getAuditById: async (id: string) => {
@@ -1336,21 +1356,11 @@ export const api = {
   checkMobileAvailability: async (mobile: string, excludeId?: string) => {
     const params = new URLSearchParams({ mobile });
     if (excludeId) params.append('excludeId', excludeId);
-    const res = await fetch(`/api/validation/check-mobile?${params.toString()}`, { headers: getHeaders() });
-    return handleResponse<{
-      available: boolean;
-      normalized?: string;
-      message?: string;
-      error?: string;
-      conflict?: {
-        entityType: string;
-        id: string;
-        name: string;
-        role: string;
-        mobile: string;
-        message: string;
-      };
-    }>(res);
+    return safeFetchJson(
+      `/api/validation/check-mobile?${params.toString()}`,
+      { headers: getHeaders() },
+      () => clientStore.checkMobileAvailability(mobile, excludeId)
+    );
   },
 
   getDatabaseIntegrity: async () => {

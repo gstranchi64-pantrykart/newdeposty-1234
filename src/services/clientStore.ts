@@ -362,8 +362,201 @@ class ClientStoreService {
     return this.db.deliveryBoys;
   }
 
+  public createDeliveryBoy(data: Partial<DeliveryBoy> & { name?: string; pincode?: string }): DeliveryBoy {
+    const id = `DEL-${String(this.db.deliveryBoys.length + 1).padStart(3, '0')}`;
+    const cleanMobile = (data.mobile || '').replace(/\D/g, '').slice(-10);
+    const newDBoy: DeliveryBoy = {
+      id,
+      fullName: data.fullName || (data as any).name || 'Delivery Partner',
+      mobile: cleanMobile,
+      alternateContact: data.alternateContact || '',
+      emergencyContact: data.emergencyContact || '',
+      vehicleType: data.vehicleType || 'BIKE',
+      vehicleNumber: data.vehicleNumber || '',
+      assignedArea: data.assignedArea || 'Central Ranchi',
+      address: data.address || '',
+      city: data.city || 'Ranchi',
+      state: data.state || 'Jharkhand',
+      pinCode: data.pinCode || data.pincode || '834001',
+      joiningDate: data.joiningDate || new Date().toISOString().split('T')[0],
+      status: data.status || 'ACTIVE',
+      notes: data.notes || '',
+    };
+    this.db.deliveryBoys.push(newDBoy);
+
+    // Register login user credentials
+    const userExists = this.db.users.some((u) => u.mobile.replace(/\D/g, '').slice(-10) === cleanMobile);
+    if (!userExists) {
+      this.db.users.push({
+        id: `USR-${newDBoy.id}`,
+        name: newDBoy.fullName,
+        mobile: newDBoy.mobile,
+        role: 'DELIVERY_BOY',
+        deliveryBoyId: newDBoy.id,
+        status: newDBoy.status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    this.saveDb();
+    return newDBoy;
+  }
+
+  public updateDeliveryBoy(id: string, updates: Partial<DeliveryBoy>): DeliveryBoy {
+    const idx = this.db.deliveryBoys.findIndex((d) => d.id === id);
+    if (idx === -1) throw new Error(`Delivery boy ${id} not found`);
+    this.db.deliveryBoys[idx] = { ...this.db.deliveryBoys[idx], ...updates };
+
+    const uIdx = this.db.users.findIndex((u) => u.deliveryBoyId === id || u.id === `USR-${id}`);
+    if (uIdx !== -1) {
+      if (updates.fullName) this.db.users[uIdx].name = updates.fullName;
+      if (updates.mobile) this.db.users[uIdx].mobile = updates.mobile;
+      if (updates.status) this.db.users[uIdx].status = updates.status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE';
+    }
+
+    this.saveDb();
+    return this.db.deliveryBoys[idx];
+  }
+
   public getAuditors(): Auditor[] {
     return this.db.auditors;
+  }
+
+  public createAuditor(data: Partial<Auditor> & { name?: string }): Auditor {
+    const id = `AUD-${String(this.db.auditors.length + 1).padStart(3, '0')}`;
+    const cleanMobile = (data.mobile || '').replace(/\D/g, '').slice(-10);
+    const newAuditor: Auditor = {
+      id,
+      fullName: data.fullName || (data as any).name || 'Field Auditor',
+      mobile: cleanMobile,
+      email: data.email || '',
+      assignedZone: data.assignedZone || 'Central Ranchi (Zone A)',
+      assignedCustomerIds: data.assignedCustomerIds || [],
+      joiningDate: data.joiningDate || new Date().toISOString().split('T')[0],
+      status: data.status || 'ACTIVE',
+      totalChecksConducted: 0,
+      notes: data.notes || '',
+    };
+    this.db.auditors.push(newAuditor);
+
+    const userExists = this.db.users.some((u) => u.mobile.replace(/\D/g, '').slice(-10) === cleanMobile);
+    if (!userExists) {
+      this.db.users.push({
+        id: `USR-${newAuditor.id}`,
+        name: newAuditor.fullName,
+        mobile: newAuditor.mobile,
+        role: 'AUDITOR',
+        auditorId: newAuditor.id,
+        status: newAuditor.status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    this.saveDb();
+    return newAuditor;
+  }
+
+  public updateAuditor(id: string, updates: Partial<Auditor>): Auditor {
+    const idx = this.db.auditors.findIndex((a) => a.id === id);
+    if (idx === -1) throw new Error(`Auditor ${id} not found`);
+    this.db.auditors[idx] = { ...this.db.auditors[idx], ...updates };
+
+    const uIdx = this.db.users.findIndex((u) => u.auditorId === id || u.id === `USR-${id}`);
+    if (uIdx !== -1) {
+      if (updates.fullName) this.db.users[uIdx].name = updates.fullName;
+      if (updates.mobile) this.db.users[uIdx].mobile = updates.mobile;
+      if (updates.status) this.db.users[uIdx].status = updates.status;
+    }
+
+    this.saveDb();
+    return this.db.auditors[idx];
+  }
+
+  public getAuditorChecks(): AuditorCheck[] {
+    return this.db.auditorChecks || [];
+  }
+
+  public getReturns(): ReturnRequest[] {
+    return this.db.returnRequests || [];
+  }
+
+  public getReplacements(): ReplacementRequest[] {
+    return this.db.replacementRequests || [];
+  }
+
+  // --- Mobile Availability Validation ---
+  public checkMobileAvailability(mobile: string, excludeId?: string) {
+    const clean = mobile.replace(/\D/g, '').slice(-10);
+    if (!clean || clean.length !== 10) {
+      return {
+        available: false,
+        normalized: clean,
+        error: 'Please enter a valid 10-digit mobile number',
+      };
+    }
+
+    // 1. Check customers
+    for (const c of this.db.customers) {
+      if (excludeId && c.id === excludeId) continue;
+      if (c.mobile.replace(/\D/g, '').slice(-10) === clean) {
+        return {
+          available: false,
+          normalized: clean,
+          error: `Mobile number ${clean} is already registered with Customer "${c.fullName}" (${c.id}).`,
+        };
+      }
+      if (c.alternateMobile && c.alternateMobile.replace(/\D/g, '').slice(-10) === clean) {
+        return {
+          available: false,
+          normalized: clean,
+          error: `Mobile number ${clean} is registered as alternate mobile for Customer "${c.fullName}".`,
+        };
+      }
+    }
+
+    // 2. Check delivery boys
+    for (const d of this.db.deliveryBoys) {
+      if (excludeId && d.id === excludeId) continue;
+      if (d.mobile.replace(/\D/g, '').slice(-10) === clean) {
+        return {
+          available: false,
+          normalized: clean,
+          error: `Mobile number ${clean} is already registered with Delivery Partner "${d.fullName}" (${d.id}).`,
+        };
+      }
+    }
+
+    // 3. Check auditors
+    for (const a of this.db.auditors) {
+      if (excludeId && a.id === excludeId) continue;
+      if (a.mobile.replace(/\D/g, '').slice(-10) === clean) {
+        return {
+          available: false,
+          normalized: clean,
+          error: `Mobile number ${clean} is already registered with Auditor "${a.fullName}" (${a.id}).`,
+        };
+      }
+    }
+
+    // 4. Check admin users
+    for (const u of this.db.users) {
+      if (excludeId && u.id === excludeId) continue;
+      if (u.role === 'ADMIN' && u.mobile.replace(/\D/g, '').slice(-10) === clean) {
+        return {
+          available: false,
+          normalized: clean,
+          error: `Mobile number ${clean} is registered to Admin "${u.name}".`,
+        };
+      }
+    }
+
+    return {
+      available: true,
+      normalized: clean,
+      message: 'Mobile number is available',
+    };
   }
 
   // --- Pantry Card ---
