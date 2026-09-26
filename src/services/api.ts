@@ -95,14 +95,33 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const sep = url.includes('?') ? '&' : '?';
   const finalUrl = method === 'GET' ? `${url}${sep}_t=${Date.now()}` : url;
 
-  const res = await fetch(finalUrl, {
+  const fetchOpts = {
     ...options,
-    cache: 'no-store',
+    cache: 'no-store' as RequestCache,
     headers: {
       ...getHeaders(),
       ...(options?.headers || {}),
     },
-  });
+  };
+
+  let res = await fetch(finalUrl, fetchOpts);
+
+  // Fallback check for live reverse proxies or CDN path rewrites
+  if (res.status === 404 && url === '/api/auth/verify-mobile') {
+    try {
+      const fallbackRes = await fetch('/api/verify-mobile', fetchOpts);
+      if (fallbackRes.ok || fallbackRes.status !== 404) {
+        res = fallbackRes;
+      }
+    } catch (_) {}
+  } else if (res.status === 404 && url === '/api/auth/verify-otp') {
+    try {
+      const fallbackRes = await fetch('/api/verify-otp', fetchOpts);
+      if (fallbackRes.ok || fallbackRes.status !== 404) {
+        res = fallbackRes;
+      }
+    } catch (_) {}
+  }
 
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {

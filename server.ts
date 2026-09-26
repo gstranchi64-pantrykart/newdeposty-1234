@@ -212,6 +212,12 @@ async function startServer() {
   app.get('/api/auth/verify-mobile', handleVerifyMobile);
   app.post('/api/auth/verify-mobile/', handleVerifyMobile);
   app.get('/api/auth/verify-mobile/', handleVerifyMobile);
+  app.post('/api/verify-mobile', handleVerifyMobile);
+  app.get('/api/verify-mobile', handleVerifyMobile);
+  app.post('/api/verify-mobile/', handleVerifyMobile);
+  app.get('/api/verify-mobile/', handleVerifyMobile);
+  app.post('/api/auth/login', handleVerifyMobile);
+  app.get('/api/auth/login', handleVerifyMobile);
 
   const handleVerifyOtp = (req: Request, res: Response) => {
     try {
@@ -295,6 +301,10 @@ async function startServer() {
   app.get('/api/auth/verify-otp', handleVerifyOtp);
   app.post('/api/auth/verify-otp/', handleVerifyOtp);
   app.get('/api/auth/verify-otp/', handleVerifyOtp);
+  app.post('/api/verify-otp', handleVerifyOtp);
+  app.get('/api/verify-otp', handleVerifyOtp);
+  app.post('/api/verify-otp/', handleVerifyOtp);
+  app.get('/api/verify-otp/', handleVerifyOtp);
 
   // ---------------- DASHBOARD & SUMMARY ----------------
   app.get('/api/dashboard/summary', (_req: Request, res: Response) => {

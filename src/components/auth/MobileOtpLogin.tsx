@@ -79,6 +79,7 @@ export const MobileOtpLogin: React.FC<{ onLoginSuccess?: () => void }> = ({ onLo
 
     setLoading(true);
     try {
+      setSuccessMsg('LOGIN SUCCESSFUL! Welcome back! Redirecting to your dashboard...');
       await loginWithOtp(cleanMobile, otp);
       if (onLoginSuccess) onLoginSuccess();
     } catch (err: any) {
