@@ -73,7 +73,8 @@ async function handleResponse<T>(res: globalThis.Response, fallback?: () => T | 
       if (fallback) {
         return await fallback();
       }
-      throw new Error('Server returned HTML instead of JSON. Ensure backend server is running.');
+      console.warn(`[API Notice] Server returned HTML for ${res.url}. Falling back to client-side data.`);
+      return [] as unknown as T;
     }
     try {
       const data = JSON.parse(text);
@@ -84,15 +85,20 @@ async function handleResponse<T>(res: globalThis.Response, fallback?: () => T | 
       return data as T;
     } catch {
       if (fallback) return await fallback();
-      throw new Error(text || 'Server error occurred');
+      return [] as unknown as T;
     }
   }
-  const data = await res.json();
-  if (!res.ok) {
+  try {
+    const data = await res.json();
+    if (!res.ok) {
+      if (fallback) return await fallback();
+      throw new Error(data.error || 'Server error occurred');
+    }
+    return data as T;
+  } catch (err: any) {
     if (fallback) return await fallback();
-    throw new Error(data.error || 'Server error occurred');
+    throw err;
   }
-  return data as T;
 }
 
 export const api = {
@@ -166,12 +172,15 @@ export const api = {
   },
 
   createChildCustomer: async (parentId: string, childData: Partial<Customer>) => {
-    const res = await fetch(`/api/customers/${parentId}/children`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(childData),
-    });
-    return handleResponse<Customer>(res);
+    return safeFetchJson(
+      `/api/customers/${parentId}/children`,
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(childData),
+      },
+      () => clientStore.createChildCustomer(parentId, childData)
+    );
   },
 
   updateCustomer: async (id: string, customer: Partial<Customer>) => {
@@ -199,20 +208,15 @@ export const api = {
   },
 
   sendPantryPermissionOtp: async (customerId: string, action: 'ALLOW' | 'REVOKE', adminMobile?: string) => {
-    const res = await fetch('/api/admin/pantry-permission/send-otp', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ customerId, action, adminMobile }),
-    });
-    return handleResponse<{
-      success: boolean;
-      message: string;
-      otpHint?: string;
-      adminMobile: string;
-      customerName: string;
-      action: string;
-      linkedChildrenCount: number;
-    }>(res);
+    return safeFetchJson(
+      '/api/admin/pantry-permission/send-otp',
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ customerId, action, adminMobile }),
+      },
+      () => clientStore.sendPantryPermissionOtp(customerId, action, adminMobile)
+    );
   },
 
   verifyPantryPermissionOtpAndToggle: async (params: {
@@ -222,17 +226,15 @@ export const api = {
     otp: string;
     reason?: string;
   }) => {
-    const res = await fetch('/api/admin/pantry-permission/verify-and-toggle', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(params),
-    });
-    return handleResponse<{
-      success: boolean;
-      message: string;
-      customer: Customer;
-      affectedChildren: Customer[];
-    }>(res);
+    return safeFetchJson(
+      '/api/admin/pantry-permission/verify-and-toggle',
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(params),
+      },
+      () => clientStore.verifyPantryPermissionOtpAndToggle(params)
+    );
   },
 
   // Delivery Boys

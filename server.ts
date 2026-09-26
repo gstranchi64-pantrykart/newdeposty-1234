@@ -14,6 +14,17 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+  // CORS middleware for custom domains & reverse proxy configurations
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-user-id');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   // Helper to extract acting user from headers
   const getActingUser = (req: Request): User => {
     const userHeader = req.headers['x-user-id'] as string;
@@ -1242,6 +1253,11 @@ async function startServer() {
     } catch (err: any) {
       return res.status(500).json({ error: err.message });
     }
+  });
+
+  // Intercept any unmatched /api routes so they return JSON 404 instead of HTML SPA
+  app.all('/api/*', (req: Request, res: Response) => {
+    return res.status(404).json({ error: `API route ${req.method} ${req.path} not found` });
   });
 
   // Vite middleware for dev / static for prod
