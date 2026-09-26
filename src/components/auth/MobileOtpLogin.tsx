@@ -139,7 +139,7 @@ export const MobileOtpLogin: React.FC<{ onLoginSuccess?: () => void }> = ({ onLo
           {step === 'MOBILE' && (
             <form onSubmit={handleSendOtp} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                <label htmlFor="mobile-number-input" className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
                   Mobile Number
                 </label>
                 <div className="relative rounded-lg shadow-sm">
@@ -148,6 +148,9 @@ export const MobileOtpLogin: React.FC<{ onLoginSuccess?: () => void }> = ({ onLo
                     <Phone className="w-4 h-4" />
                   </div>
                   <input
+                    id="mobile-number-input"
+                    name="mobile"
+                    aria-label="10-Digit Mobile Number"
                     type="tel"
                     maxLength={10}
                     value={mobile}
@@ -201,7 +204,7 @@ export const MobileOtpLogin: React.FC<{ onLoginSuccess?: () => void }> = ({ onLo
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                <label htmlFor="otp-input" className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
                   Enter OTP
                 </label>
                 <div className="relative rounded-lg shadow-sm">
@@ -209,6 +212,9 @@ export const MobileOtpLogin: React.FC<{ onLoginSuccess?: () => void }> = ({ onLo
                     <KeyRound className="w-4 h-4" />
                   </div>
                   <input
+                    id="otp-input"
+                    name="otp"
+                    aria-label="6-Digit OTP Verification Code"
                     type="text"
                     maxLength={6}
                     value={otp}
