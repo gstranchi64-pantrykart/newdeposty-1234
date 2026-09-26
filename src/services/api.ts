@@ -377,6 +377,58 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
       } as unknown as T;
     }
 
+    if (url.includes('/api/customers/')) {
+      return {
+        id: 'CUS-000001',
+        fullName: 'Ramesh Kumar',
+        mobile: '9123456780',
+        email: 'ramesh.kumar@example.com',
+        address: 'House #42, Green Park Main, Block B',
+        area: 'Green Park',
+        city: 'New Delhi',
+        state: 'Delhi',
+        pinCode: '110016',
+        isChild: false,
+        childCustomerIds: [],
+        pantryLimit: 10000,
+        usedPantryLimit: 0,
+        availablePantryLimit: 10000,
+        walletBalance: 1250,
+        status: 'ACTIVE',
+        createdAt: '2026-09-01',
+        updatedAt: '2026-09-01',
+      } as unknown as T;
+    }
+
+    if (url.includes('/api/delivery-boys/')) {
+      return {
+        id: 'DEL-000001',
+        fullName: 'Rajesh Delivery Boy',
+        mobile: '9988776655',
+        address: 'Sector 12, Dwarka',
+        city: 'New Delhi',
+        state: 'Delhi',
+        pinCode: '110075',
+        assignedArea: 'Dwarka Zone A',
+        vehicleType: 'BIKE',
+        vehicleNumber: 'DL-01-AB-1234',
+        joiningDate: '2026-01-15',
+        status: 'ACTIVE',
+      } as unknown as T;
+    }
+
+    if (url.includes('/api/auditors/')) {
+      return {
+        id: 'AUD-000001',
+        fullName: 'Suresh Field Auditor',
+        mobile: '9876500001',
+        assignedZone: 'North Delhi Zone',
+        joiningDate: '2026-02-01',
+        status: 'ACTIVE',
+        totalChecksConducted: 45,
+      } as unknown as T;
+    }
+
     if (method === 'GET') {
       return [] as unknown as T;
     }
