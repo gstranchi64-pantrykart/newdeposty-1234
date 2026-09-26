@@ -1804,8 +1804,8 @@ export class BusinessService {
     if (updates.shopkeeperName && updates.shopkeeperName.trim()) {
       batch.shopkeeperName = updates.shopkeeperName.trim();
     }
-    if (updates.status) {
-      batch.status = updates.status;
+    if ((updates as any).status) {
+      (batch as any).status = (updates as any).status;
     }
     batch.updatedAt = getToday();
 

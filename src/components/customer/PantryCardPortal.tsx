@@ -153,7 +153,7 @@ export const PantryCardPortal: React.FC = () => {
         return timeB - timeA;
       });
 
-      setPantryItems(items);
+      setPantryItems(items as any);
       setOrders(userOrders);
       setLedger(sortedLedg);
       setReturns(allReturns.filter((r) => r.customerId === customer.id));

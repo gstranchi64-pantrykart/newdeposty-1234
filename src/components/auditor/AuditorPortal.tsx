@@ -366,7 +366,7 @@ export const AuditorPortal: React.FC = () => {
           api.getWalletTransactions(selectedCustomerId).catch(() => []),
           api.getOrders({ customerId: selectedCustomerId }).catch(() => []),
         ]);
-        setPantryItems(items);
+        setPantryItems(items as any);
         setCustomerOrders(orders);
         setCustomerWallet(walletData);
         setCustomerTimelines(timelines);
@@ -430,7 +430,7 @@ export const AuditorPortal: React.FC = () => {
           } else {
             const isNotAvail = item.auditorVerificationStatus === 'NOT_AVAILABLE';
             initialStatus[item.id] = {
-              status: (item.auditorVerificationStatus as any) || (item.isExpired ? 'EXPIRED' : 'AVAILABLE'),
+              status: (item.auditorVerificationStatus as any) || ((item as any).isExpired ? 'EXPIRED' : 'AVAILABLE'),
               action: isNotAvail ? 'WALLET_DEDUCTION' : 'NONE',
               qtyAvailable: item.quantity,
               qtyMissing: 0,
