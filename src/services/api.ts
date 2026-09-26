@@ -108,12 +108,15 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   if (!contentType.includes('application/json')) {
     const text = await res.text();
     if (!res.ok) {
-      throw new Error(`Server returned HTTP ${res.status}: ${text || res.statusText}`);
+      if (res.status === 404) {
+        throw new Error('Server route or service temporarily unavailable. Please try again.');
+      }
+      throw new Error(`Server connection issue (HTTP ${res.status}). Please try again.`);
     }
     try {
       return JSON.parse(text) as T;
     } catch {
-      throw new Error(`Unexpected non-JSON response from server: ${text.substring(0, 100)}`);
+      throw new Error('Server returned invalid data format. Please try again.');
     }
   }
 

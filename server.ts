@@ -130,7 +130,7 @@ async function startServer() {
         auditor: authData.auditor,
       });
     } catch (err: any) {
-      return res.status(404).json({ error: err.message || 'Mobile number not registered.' });
+      return res.status(400).json({ error: err.message || 'Mobile verification failed.' });
     }
   });
 
