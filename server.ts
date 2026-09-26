@@ -117,19 +117,94 @@ async function startServer() {
   const handleVerifyMobile = (req: Request, res: Response) => {
     try {
       const mobile = req.body?.mobile || req.query?.mobile;
-      if (!mobile) return res.status(400).json({ error: 'Mobile number is required' });
-      const authData = BusinessService.verifyMobile(String(mobile));
+      const otp = req.body?.otp || req.query?.otp;
+
+      if (!mobile) {
+        return res.status(400).json({ success: false, code: 'INVALID_MOBILE', error: 'Mobile number is required' });
+      }
+
+      const cleanMobile = normalizeMobile(String(mobile));
+      if (!cleanMobile || cleanMobile.length !== 10) {
+        return res.status(400).json({ success: false, code: 'INVALID_MOBILE', error: 'Please enter a valid 10-digit mobile number' });
+      }
+
+      // Perform user lookup in local DB and Supabase
+      let authData;
+      try {
+        authData = BusinessService.verifyMobile(cleanMobile);
+      } catch (err: any) {
+        return res.status(404).json({
+          success: false,
+          code: 'MOBILE_NOT_REGISTERED',
+          error: err.message || 'Mobile number is not registered.',
+        });
+      }
+
+      if (!authData || !authData.user) {
+        return res.status(404).json({
+          success: false,
+          code: 'MOBILE_NOT_REGISTERED',
+          error: 'Mobile number is not registered.',
+        });
+      }
+
+      if (authData.user.status === 'INACTIVE') {
+        return res.status(403).json({
+          success: false,
+          code: 'UNAUTHORIZED',
+          error: 'Account is disabled or inactive.',
+        });
+      }
+
+      if (!authData.user.role) {
+        return res.status(400).json({
+          success: false,
+          code: 'ROLE_NOT_ASSIGNED',
+          error: 'No role assigned to this account.',
+        });
+      }
+
+      // If OTP was provided in request body/query, perform OTP verification
+      if (otp !== undefined && otp !== null && String(otp).trim() !== '') {
+        const strOtp = String(otp).trim();
+        const isValidDemoOtp = strOtp === '123456' || strOtp === 'DEMO_OTP' || strOtp === '1234' || (process.env.NODE_ENV !== 'production' && /^\d{4,6}$/.test(strOtp));
+        if (!isValidDemoOtp) {
+          return res.status(401).json({
+            success: false,
+            code: 'INVALID_OTP',
+            error: 'Invalid OTP. Please enter valid demo OTP (123456 or DEMO_OTP).',
+          });
+        }
+
+        return res.json({
+          success: true,
+          token: `session-${Date.now()}-${authData.user.id}`,
+          role: authData.user.role,
+          user: authData.user,
+          customer: authData.customer || null,
+          deliveryBoy: authData.deliveryBoy || null,
+          auditor: authData.auditor || null,
+          message: 'Authenticated successfully',
+        });
+      }
+
+      // Mobile check success (Step 1)
       return res.json({
         success: true,
         message: 'OTP sent to mobile number',
         otpHint: '123456',
+        role: authData.user.role,
         user: authData.user,
-        customer: authData.customer,
-        deliveryBoy: authData.deliveryBoy,
-        auditor: authData.auditor,
+        customer: authData.customer || null,
+        deliveryBoy: authData.deliveryBoy || null,
+        auditor: authData.auditor || null,
       });
     } catch (err: any) {
-      return res.status(400).json({ error: err.message || 'Mobile verification failed.' });
+      return res.status(500).json({
+        success: false,
+        code: 'SERVER_ERROR',
+        error: err.message || 'Internal server authentication error',
+      });
     }
   };
 
@@ -142,20 +217,77 @@ async function startServer() {
     try {
       const mobile = req.body?.mobile || req.query?.mobile;
       const otp = req.body?.otp || req.query?.otp;
-      if (!mobile) return res.status(400).json({ error: 'Mobile number required' });
-      if (!otp) return res.status(400).json({ error: 'OTP is required' });
 
-      const authData = BusinessService.verifyMobile(String(mobile));
+      if (!mobile) {
+        return res.status(400).json({ success: false, code: 'INVALID_MOBILE', error: 'Mobile number is required' });
+      }
+      if (!otp) {
+        return res.status(400).json({ success: false, code: 'INVALID_OTP', error: 'OTP is required' });
+      }
+
+      const cleanMobile = normalizeMobile(String(mobile));
+      const strOtp = String(otp).trim();
+
+      const isValidDemoOtp = strOtp === '123456' || strOtp === 'DEMO_OTP' || strOtp === '1234' || (process.env.NODE_ENV !== 'production' && /^\d{4,6}$/.test(strOtp));
+      if (!isValidDemoOtp) {
+        return res.status(401).json({
+          success: false,
+          code: 'INVALID_OTP',
+          error: 'Invalid OTP. Please enter valid demo OTP (123456 or DEMO_OTP).',
+        });
+      }
+
+      let authData;
+      try {
+        authData = BusinessService.verifyMobile(cleanMobile);
+      } catch (err: any) {
+        return res.status(404).json({
+          success: false,
+          code: 'MOBILE_NOT_REGISTERED',
+          error: err.message || 'Mobile number is not registered.',
+        });
+      }
+
+      if (!authData || !authData.user) {
+        return res.status(404).json({
+          success: false,
+          code: 'MOBILE_NOT_REGISTERED',
+          error: 'Mobile number is not registered.',
+        });
+      }
+
+      if (authData.user.status === 'INACTIVE') {
+        return res.status(403).json({
+          success: false,
+          code: 'UNAUTHORIZED',
+          error: 'Account is disabled or inactive.',
+        });
+      }
+
+      if (!authData.user.role) {
+        return res.status(400).json({
+          success: false,
+          code: 'ROLE_NOT_ASSIGNED',
+          error: 'No role assigned to this account.',
+        });
+      }
+
       return res.json({
         success: true,
         token: `session-${Date.now()}-${authData.user.id}`,
+        role: authData.user.role,
         user: authData.user,
-        customer: authData.customer,
-        deliveryBoy: authData.deliveryBoy,
-        auditor: authData.auditor,
+        customer: authData.customer || null,
+        deliveryBoy: authData.deliveryBoy || null,
+        auditor: authData.auditor || null,
+        message: 'Authenticated successfully',
       });
     } catch (err: any) {
-      return res.status(400).json({ error: err.message || 'OTP verification failed' });
+      return res.status(500).json({
+        success: false,
+        code: 'SERVER_ERROR',
+        error: err.message || 'Internal server authentication error',
+      });
     }
   };
 
