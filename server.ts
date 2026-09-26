@@ -25,9 +25,9 @@ async function startServer() {
     next();
   });
 
-  // Anti-stale HTTP Cache headers: Ensure live real-time data across browser refreshes
-  app.use('/api', (_req, res, next) => {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  // Strict Anti-Caching for all API routes to ensure real-time live data on refresh
+  app.use('/api', (_req: Request, res: Response, next) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
     res.setHeader('Surrogate-Control', 'no-store');
@@ -423,6 +423,16 @@ async function startServer() {
       const { batchId, newAvailableQty, reason } = req.body;
       const batch = BusinessService.adjustBatchStock(batchId, Number(newAvailableQty), reason, user);
       return res.json(batch);
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.put('/api/batches/:id', (req: Request, res: Response) => {
+    try {
+      const user = getActingUser(req);
+      const updated = BusinessService.updateBatch(req.params.id, req.body, user);
+      return res.json(updated);
     } catch (err: any) {
       return res.status(400).json({ error: err.message });
     }
@@ -1290,13 +1300,12 @@ async function startServer() {
       const integrityReport = BusinessService.validateAndFixDatabaseIntegrity();
       console.log('[Database Integrity Audit] Mobile & ID Uniqueness Check Complete:', integrityReport.summary, `Fixes applied: ${integrityReport.fixedCount}`);
 
-      console.log('[Supabase Startup] Hydrating database from Supabase Cloud...');
-      const loaded = await store.loadFromSupabase();
+      console.log('[Supabase Startup] Checking database synchronization with Supabase Cloud...');
+      const loaded = await store.loadFromSupabaseIfNewer();
       if (loaded) {
-        console.log('[Supabase Startup] Fresh state successfully loaded from Supabase Cloud!');
+        console.log('[Supabase Startup] Newer state successfully loaded from Supabase Cloud!');
       } else {
-        console.log('[Supabase Startup] Supabase cloud store empty or pending schema; pushing current store state...');
-        await store.syncToSupabase();
+        console.log('[Supabase Startup] Local database is current and verified; live sync maintained.');
       }
     } catch (err: any) {
       console.warn('[Supabase Startup] Cloud sync notice:', err.message);
