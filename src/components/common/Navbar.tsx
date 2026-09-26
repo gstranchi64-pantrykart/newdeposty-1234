@@ -39,7 +39,6 @@ import { UserRole, hasPantryAccess, Auditor } from '../../types';
 import { api } from '../../services/api';
 import { AdminNotificationCenter } from '../admin/AdminNotificationCenter';
 import { useTheme } from '../../context/ThemeContext';
-import { ThemeSettingsModal } from '../admin/ThemeSettingsModal';
 
 export interface NavbarProps {
   currentTab?: string;
@@ -956,25 +955,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
 
-            {/* Quick 1-Click Theme Switcher Button */}
-            <button
-              onClick={() => setShowThemeModal(true)}
-              style={{
-                backgroundColor: currentTheme.menuBg,
-                borderColor: currentTheme.menuBorder,
-                color: currentTheme.menuItemText,
-              }}
-              className="relative px-2.5 py-1.5 rounded-xl border transition cursor-pointer flex items-center gap-1.5 shadow-xs theme-menu-hover"
-              title="10 Ready-Made ERP Themes (Yellow, Blue, Green, Parrot)"
-            >
-              <Palette className="w-4 h-4" style={{ color: currentTheme.primary }} />
-              <span className="hidden sm:inline text-xs font-bold" style={{ color: currentTheme.menuItemText }}>Theme</span>
-              <span
-                className="w-2.5 h-2.5 rounded-full border border-black/30 shadow-3xs"
-                style={{ backgroundColor: currentTheme.primary }}
-              />
-            </button>
-
             {/* Role Switcher Button */}
             <div className="relative">
               <button
@@ -1132,33 +1112,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <div>
                       <div className="font-semibold text-white">AUDITOR Portal</div>
                       <div className="text-[10px] opacity-80">Field visit &amp; pantry audits</div>
-                    </div>
-                  </button>
-
-                  {/* Change ERP Theme Option */}
-                  <button
-                    onClick={() => {
-                      setShowRoleMenu(false);
-                      setShowThemeModal(true);
-                    }}
-                    style={{ color: currentTheme.menuItemText }}
-                    className="w-full px-3 py-2 text-left text-xs flex items-center gap-2 cursor-pointer transition theme-menu-hover"
-                  >
-                    <Palette className="w-4 h-4 shrink-0" style={{ color: currentTheme.primary }} />
-                    <div>
-                      <div className="font-semibold text-white flex items-center gap-1.5">
-                        <span>ERP Themes &amp; Colors</span>
-                        <span
-                          className="px-1.5 py-0.2 rounded text-[9px] font-black"
-                          style={{
-                            backgroundColor: currentTheme.badgeBg,
-                            color: currentTheme.badgeText,
-                          }}
-                        >
-                          10 Presets
-                        </span>
-                      </div>
-                      <div className="text-[10px] opacity-80">1-Click switch (Yellow, Blue, Green, Parrot)</div>
                     </div>
                   </button>
 
@@ -1490,11 +1443,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>
       )}
-      {/* 10 Ready-Made ERP Themes & Settings Modal */}
-      <ThemeSettingsModal
-        isOpen={showThemeModal}
-        onClose={() => setShowThemeModal(false)}
-      />
     </header>
   );
 };

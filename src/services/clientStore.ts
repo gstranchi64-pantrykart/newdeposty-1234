@@ -59,7 +59,21 @@ class ClientStoreService {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        // Ensure auditors have assignedCustomerIds array
+        if (Array.isArray(parsed.auditors)) {
+          parsed.auditors.forEach((a: Auditor) => {
+            if (!Array.isArray(a.assignedCustomerIds) || a.assignedCustomerIds.length === 0) {
+              const defaultAuditor = (initialDb.auditors as Auditor[])?.find((da) => da.id === a.id);
+              if (defaultAuditor?.assignedCustomerIds && defaultAuditor.assignedCustomerIds.length > 0) {
+                a.assignedCustomerIds = [...defaultAuditor.assignedCustomerIds];
+              } else if (a.id === 'AUD-001') {
+                a.assignedCustomerIds = ['CUS-000001', 'CUS-000001-01', 'CUS-000001-02', 'CUS-000002', 'CUS-000003'];
+              }
+            }
+          });
+        }
+        return parsed;
       }
     } catch (e) {
       console.warn('Could not load local database, falling back to initial data', e);

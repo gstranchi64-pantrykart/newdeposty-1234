@@ -280,7 +280,14 @@
       "assignedZone": "Central Ranchi (Zone A)",
       "joiningDate": "2026-08-05",
       "status": "ACTIVE",
-      "totalChecksConducted": 20
+      "totalChecksConducted": 20,
+      "assignedCustomerIds": [
+        "CUS-000001",
+        "CUS-000001-01",
+        "CUS-000001-02",
+        "CUS-000002",
+        "CUS-000003"
+      ]
     },
     {
       "id": "AUD-002",
@@ -290,7 +297,11 @@
       "assignedZone": "South Ranchi (Zone B)",
       "joiningDate": "2026-08-20",
       "status": "ACTIVE",
-      "totalChecksConducted": 8
+      "totalChecksConducted": 8,
+      "assignedCustomerIds": [
+        "CUS-000002",
+        "CUS-000003"
+      ]
     }
   ],
   "products": [
@@ -4644,7 +4655,7 @@
         "lastTestStatus": "SUCCESS",
         "lastTestMessage": "Connected successfully to Supabase Project (bgxnmmecjcgrwtemmjtz) in 227ms! Supabase Auth & Cloud Database verified online.",
         "connected": true,
-        "serviceRoleKey": ""
+        "serviceRoleKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJneG5tbWVjamNncnd0ZW1tanR6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDEzODA1OCwiZXhwIjoyMTA1NzE0MDU4fQ.dMVk2v3wdELMzAwAP80yuATN0RL9ud6WgJlIZCVimYQ"
       }
     }
   },
