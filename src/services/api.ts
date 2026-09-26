@@ -90,7 +90,6 @@ const getHeaders = (userId?: string): Record<string, string> => {
 
 const BACKEND_PRIMARY_HOSTS = [
   'https://ais-pre-ysan7dqet3ily42p5p7rap-958564531601.asia-southeast1.run.app',
-  'https://ais-dev-ysan7dqet3ily42p5p7rap-958564531601.asia-southeast1.run.app',
 ];
 
 let cachedWorkingHost: string | null = null;
