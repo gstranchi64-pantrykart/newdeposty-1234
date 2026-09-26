@@ -81,10 +81,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showAuditorModal, setShowAuditorModal] = useState(false);
 
   useEffect(() => {
-    api.getAuditors().then(setAuditors).catch(() => {});
+    api.getAuditors().then((res) => {
+      if (Array.isArray(res)) setAuditors(res);
+    }).catch(() => {});
   }, []);
 
-  const primaryAuditor = auditors.find((a) => a.status === 'ACTIVE') || auditors[0];
+  const primaryAuditor = Array.isArray(auditors) && auditors.length > 0
+    ? (auditors.find((a) => a.status === 'ACTIVE') || auditors[0])
+    : null;
 
   const navRef = useRef<HTMLDivElement>(null);
 
