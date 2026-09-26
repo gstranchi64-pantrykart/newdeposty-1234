@@ -25,6 +25,15 @@ async function startServer() {
     next();
   });
 
+  // Anti-stale HTTP Cache headers: Ensure live real-time data across browser refreshes
+  app.use('/api', (_req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+    next();
+  });
+
   // Helper to extract acting user from headers
   const getActingUser = (req: Request): User => {
     const userHeader = req.headers['x-user-id'] as string;

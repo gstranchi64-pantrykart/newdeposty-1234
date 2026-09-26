@@ -1605,12 +1605,31 @@ export class BusinessService {
     db.purchases.unshift(purchaseRecord);
 
     if (existingBatch) {
-      // RULE 3: Add quantity to existing batch
+      // RULE 3: Add quantity to existing batch and update with latest dates, pricing, and supplier
       const prevAvailable = existingBatch.availableQuantity;
+      const oldMfg = existingBatch.manufacturingDate;
+      const oldExp = existingBatch.expiryDate;
       existingBatch.purchaseQuantity += entry.quantity;
       existingBatch.availableQuantity += entry.quantity;
+      if (entry.manufacturingDate) existingBatch.manufacturingDate = entry.manufacturingDate;
+      if (entry.expiryDate) existingBatch.expiryDate = entry.expiryDate;
+      if (entry.purchaseRate) existingBatch.purchaseRate = Number(entry.purchaseRate);
+      if (entry.mrp) existingBatch.mrp = Number(entry.mrp);
+      if (entry.sellingPrice) existingBatch.sellingPrice = Number(entry.sellingPrice);
+      if (entry.shopkeeperName) existingBatch.shopkeeperName = entry.shopkeeperName.trim();
       existingBatch.updatedAt = getToday();
       targetBatch = existingBatch;
+
+      // Also sync updated dates to active customer pantry card items for this batch
+      if (db.pantryCardItems && db.pantryCardItems.length > 0) {
+        for (const item of db.pantryCardItems) {
+          if (item.batchId === existingBatch.id || (item.productId === existingBatch.productId && item.batchNumber === existingBatch.batchNumber)) {
+            if (entry.manufacturingDate) item.manufacturingDate = entry.manufacturingDate;
+            if (entry.expiryDate) item.expiryDate = entry.expiryDate;
+            if (entry.sellingPrice) item.unitPrice = Number(entry.sellingPrice);
+          }
+        }
+      }
 
       // Inventory Transaction
       db.inventoryTransactions.unshift({
@@ -1627,7 +1646,7 @@ export class BusinessService {
         newStock: existingBatch.availableQuantity,
         userId: adminUser.id,
         role: adminUser.role,
-        reason: `Repeated stock purchase inward (+${entry.quantity} units) from ${entry.shopkeeperName}`,
+        reason: `Repeated stock purchase inward (+${entry.quantity} units) from ${entry.shopkeeperName} (MFG: ${existingBatch.manufacturingDate}, EXP: ${existingBatch.expiryDate})`,
         reference: purchaseId,
       });
 
@@ -1637,9 +1656,9 @@ export class BusinessService {
         action: 'STOCK_ADDITION_SAME_BATCH',
         entity: 'BATCH',
         entityId: existingBatch.id,
-        oldValue: `${prevAvailable} available`,
-        newValue: `${existingBatch.availableQuantity} available`,
-        reason: `Purchased +${entry.quantity} Qty for existing Batch ${existingBatch.batchNumber} from ${entry.shopkeeperName}`,
+        oldValue: `${prevAvailable} available (MFG: ${oldMfg}, EXP: ${oldExp})`,
+        newValue: `${existingBatch.availableQuantity} available (MFG: ${existingBatch.manufacturingDate}, EXP: ${existingBatch.expiryDate})`,
+        reason: `Purchased +${entry.quantity} Qty for existing Batch ${existingBatch.batchNumber} from ${entry.shopkeeperName} with updated dates`,
       });
     } else {
       // RULE 4: New distinct batch record
@@ -1738,6 +1757,79 @@ export class BusinessService {
       oldValue: `${oldQty}`,
       newValue: `${newAvailableQty}`,
       reason: reason,
+    });
+
+    store.save();
+    return batch;
+  }
+
+  static updateBatch(
+    batchId: string,
+    updates: Partial<ProductBatch> & { notes?: string },
+    adminUser: User
+  ): ProductBatch {
+    const db = store.getDb();
+    const batch = db.batches.find((b) => b.id === batchId || b.batchNumber === batchId);
+    if (!batch) throw new Error(`Batch ${batchId} not found.`);
+
+    const oldBatchNumber = batch.batchNumber;
+    const oldMfg = batch.manufacturingDate;
+    const oldExp = batch.expiryDate;
+    const oldQty = batch.availableQuantity;
+
+    if (updates.batchNumber && updates.batchNumber.trim()) {
+      batch.batchNumber = updates.batchNumber.trim();
+    }
+    if (updates.manufacturingDate) {
+      batch.manufacturingDate = updates.manufacturingDate;
+    }
+    if (updates.expiryDate) {
+      batch.expiryDate = updates.expiryDate;
+    }
+    if (typeof updates.availableQuantity === 'number') {
+      batch.availableQuantity = Math.max(0, updates.availableQuantity);
+    }
+    if (typeof updates.purchaseQuantity === 'number') {
+      batch.purchaseQuantity = Math.max(0, updates.purchaseQuantity);
+    }
+    if (typeof updates.mrp === 'number') {
+      batch.mrp = updates.mrp;
+    }
+    if (typeof updates.sellingPrice === 'number') {
+      batch.sellingPrice = updates.sellingPrice;
+    }
+    if (typeof updates.purchaseRate === 'number') {
+      batch.purchaseRate = updates.purchaseRate;
+    }
+    if (updates.shopkeeperName && updates.shopkeeperName.trim()) {
+      batch.shopkeeperName = updates.shopkeeperName.trim();
+    }
+    if (updates.status) {
+      batch.status = updates.status;
+    }
+    batch.updatedAt = getToday();
+
+    // Cascade update to customer pantry card items that hold this batch
+    if (db.pantryCardItems && db.pantryCardItems.length > 0) {
+      for (const item of db.pantryCardItems) {
+        if (item.batchId === batch.id || (item.productId === batch.productId && item.batchNumber === oldBatchNumber)) {
+          item.batchNumber = batch.batchNumber;
+          if (batch.manufacturingDate) item.manufacturingDate = batch.manufacturingDate;
+          if (batch.expiryDate) item.expiryDate = batch.expiryDate;
+          if (batch.sellingPrice) item.unitPrice = batch.sellingPrice;
+        }
+      }
+    }
+
+    this.logAudit({
+      who: adminUser.name,
+      role: adminUser.role,
+      action: 'UPDATE_BATCH',
+      entity: 'BATCH',
+      entityId: batch.id,
+      oldValue: `Batch #${oldBatchNumber} (MFG: ${oldMfg}, EXP: ${oldExp}, Qty: ${oldQty})`,
+      newValue: `Batch #${batch.batchNumber} (MFG: ${batch.manufacturingDate}, EXP: ${batch.expiryDate}, Qty: ${batch.availableQuantity})`,
+      reason: updates.notes || `Updated batch info and dates for ${batch.productName}`,
     });
 
     store.save();

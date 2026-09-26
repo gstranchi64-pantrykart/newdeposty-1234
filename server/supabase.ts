@@ -498,7 +498,7 @@ class SupabaseService {
   /**
    * Pulls data from Supabase if stored
    */
-  public async syncPull(): Promise<{ success: boolean; data?: any; message: string }> {
+  public async syncPull(): Promise<{ success: boolean; data?: any; message: string; updatedAt?: string }> {
     const client = this.getClient();
     if (!client) {
       return { success: false, message: 'Supabase client not initialized.' };
@@ -522,6 +522,7 @@ class SupabaseService {
         return {
           success: true,
           data: data.data,
+          updatedAt: data.updated_at,
           message: `Successfully pulled latest state snapshot from Supabase synced at ${data.updated_at || 'recent'}.`,
         };
       }

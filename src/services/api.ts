@@ -1125,38 +1125,52 @@ export const api = {
 
   // Wallet Management
   getWalletBalance: async (customerId: string) => {
-    const res = await fetch(`/api/wallet/${customerId}`, { headers: getHeaders() });
-    return handleResponse<{ walletBalance: number; customer: Customer }>(res);
+    return safeFetchJson(
+      `/api/wallet/${customerId}`,
+      { headers: getHeaders() },
+      () => clientStore.getWalletBalance(customerId)
+    );
   },
 
   getWalletTransactions: async (customerId?: string) => {
     const url = customerId ? `/api/wallet-transactions?customerId=${customerId}` : '/api/wallet-transactions';
-    const res = await fetch(url, { headers: getHeaders() });
-    return handleResponse<WalletTransaction[]>(res);
+    return safeFetchJson(
+      url,
+      { headers: getHeaders() },
+      () => clientStore.getWalletTransactions(customerId)
+    );
   },
 
   rechargeCustomerWallet: async (customerId: string, amount: number, reason: string) => {
-    const res = await fetch('/api/wallet/recharge', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ customerId, amount, reason }),
-    });
-    return handleResponse<{ customer: Customer; transaction: WalletTransaction }>(res);
+    return safeFetchJson(
+      '/api/wallet/recharge',
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ customerId, amount, reason }),
+      },
+      () => clientStore.rechargeWallet(customerId, amount, reason)
+    );
   },
 
   rechargeWallet: async (customerId: string, amount: number, reason: string) => {
-    const res = await fetch('/api/wallet/recharge', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ customerId, amount, reason }),
-    });
-    const data = await handleResponse<{ customer: Customer; transaction: WalletTransaction }>(res);
-    return {
-      success: true,
-      newBalance: data.customer.walletBalance,
-      customer: data.customer,
-      transaction: data.transaction,
-    };
+    return safeFetchJson(
+      '/api/wallet/recharge',
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ customerId, amount, reason }),
+      },
+      () => {
+        const res = clientStore.rechargeWallet(customerId, amount, reason);
+        return {
+          success: true,
+          newBalance: res.customer.walletBalance || 0,
+          customer: res.customer,
+          transaction: res.transaction,
+        };
+      }
+    );
   },
 
   deductCustomerWallet: async (payload: {
@@ -1170,19 +1184,25 @@ export const api = {
     quantity?: number;
     unitPrice?: number;
   }) => {
-    const res = await fetch('/api/wallet/deduct', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(payload),
-    });
-    return handleResponse<{ customer: Customer; transaction: WalletTransaction }>(res);
+    return safeFetchJson(
+      '/api/wallet/deduct',
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      },
+      () => clientStore.deductWallet(payload)
+    );
   },
 
   // Wallet Recharge Requests (Customer / Auditor / Admin)
   getWalletRechargeRequests: async (customerId?: string) => {
     const url = customerId ? `/api/wallet-recharge-requests?customerId=${customerId}` : '/api/wallet-recharge-requests';
-    const res = await fetch(url, { headers: getHeaders() });
-    return handleResponse<WalletRechargeRequest[]>(res);
+    return safeFetchJson(
+      url,
+      { headers: getHeaders() },
+      () => clientStore.getWalletRechargeRequests(customerId)
+    );
   },
 
   createWalletRechargeRequest: async (payload: {
@@ -1194,35 +1214,55 @@ export const api = {
     transactionRef: string;
     notes?: string;
   }) => {
-    const res = await fetch('/api/wallet-recharge-requests', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(payload),
-    });
-    return handleResponse<WalletRechargeRequest>(res);
+    return safeFetchJson(
+      '/api/wallet-recharge-requests',
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      },
+      () => clientStore.createWalletRechargeRequest(payload)
+    );
   },
 
   confirmWalletRechargeRequest: async (id: string) => {
-    const res = await fetch(`/api/wallet-recharge-requests/${id}/confirm`, {
-      method: 'POST',
-      headers: getHeaders(),
-    });
-    return handleResponse<{ request: WalletRechargeRequest; customer: Customer; transaction: WalletTransaction }>(res);
+    return safeFetchJson(
+      `/api/wallet-recharge-requests/${id}/confirm`,
+      {
+        method: 'POST',
+        headers: getHeaders(),
+      },
+      () => clientStore.confirmWalletRechargeRequest(id)
+    );
   },
 
   rejectWalletRechargeRequest: async (id: string, reason?: string) => {
-    const res = await fetch(`/api/wallet-recharge-requests/${id}/reject`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ reason }),
-    });
-    return handleResponse<WalletRechargeRequest>(res);
+    return safeFetchJson(
+      `/api/wallet-recharge-requests/${id}/reject`,
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ reason }),
+      },
+      () => clientStore.rejectWalletRechargeRequest(id, reason)
+    );
   },
 
   // Ledger & Logs
   getInventoryTransactions: async () => {
-    const res = await fetch('/api/inventory-transactions', { headers: getHeaders() });
-    return handleResponse<InventoryTransaction[]>(res);
+    return safeFetchJson(
+      '/api/inventory-transactions',
+      { headers: getHeaders() },
+      () => clientStore.getDb().inventoryTransactions || []
+    );
+  },
+
+  getAuditLogs: async () => {
+    return safeFetchJson(
+      '/api/audit-logs',
+      { headers: getHeaders() },
+      () => clientStore.getDb().auditLogs || []
+    );
   },
 
   getAuditLogs: async () => {

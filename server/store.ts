@@ -33,6 +33,7 @@ import {
 } from '../src/types';
 
 interface DatabaseSchema {
+  lastUpdatedAt?: string;
   users: User[];
   customers: Customer[];
   deliveryBoys: DeliveryBoy[];
@@ -2302,6 +2303,7 @@ class DatabaseStore {
   private saveSync() {
     if (!this.db) return;
     try {
+      this.db.lastUpdatedAt = new Date().toISOString();
       if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
       }
@@ -2338,11 +2340,35 @@ class DatabaseStore {
   }
 
   public async loadFromSupabase(): Promise<boolean> {
-    const res = await supabaseService.syncPull();
-    if (res.success && res.data) {
-      this.db = res.data;
-      this.saveSync();
-      return true;
+    return this.loadFromSupabaseIfNewer();
+  }
+
+  public async loadFromSupabaseIfNewer(): Promise<boolean> {
+    try {
+      const res = await supabaseService.syncPull();
+      if (res.success && res.data) {
+        const cloudData = res.data;
+        const localTime = this.db?.lastUpdatedAt ? new Date(this.db.lastUpdatedAt).getTime() : 0;
+        const cloudTime = cloudData.lastUpdatedAt || res.updatedAt ? new Date(cloudData.lastUpdatedAt || res.updatedAt).getTime() : 0;
+
+        // If local database has records and is newer than or equal to cloud, DO NOT overwrite with older cloud snapshot
+        const localHasRecords = this.db && Array.isArray(this.db.products) && this.db.products.length > 0;
+        if (localHasRecords && (!cloudTime || localTime >= cloudTime)) {
+          console.log(`[Store] Local data is current (Local: ${this.db?.lastUpdatedAt || 'ready'}, Cloud: ${res.updatedAt || 'n/a'}). Syncing local to Supabase.`);
+          await this.syncToSupabase();
+          return false;
+        }
+
+        // Only hydrate if local has no records or cloud is strictly newer
+        if (cloudTime > localTime || !localHasRecords) {
+          console.log(`[Store] Hydrating from Supabase Cloud snapshot (Cloud timestamp: ${res.updatedAt || cloudData.lastUpdatedAt})...`);
+          this.db = cloudData;
+          this.saveSync();
+          return true;
+        }
+      }
+    } catch (e: any) {
+      console.warn('[Store] Supabase check notice:', e?.message || e);
     }
     return false;
   }
