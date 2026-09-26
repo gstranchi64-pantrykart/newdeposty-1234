@@ -11,10 +11,7 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json({ limit: '50mb' }));
-  app.use(express.urlencoded({ limit: '50mb', extended: true }));
-
-  // CORS middleware for custom domains & reverse proxy configurations
+  // CORS middleware for custom domains & reverse proxy configurations - MUST BE FIRST
   app.use((req, res, next) => {
     const origin = req.headers.origin;
     if (origin && origin !== 'null') {
@@ -34,6 +31,9 @@ async function startServer() {
     }
     next();
   });
+
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // Strict Anti-Caching for all API routes to ensure real-time live data on refresh
   app.use('/api', (_req: Request, res: Response, next) => {
