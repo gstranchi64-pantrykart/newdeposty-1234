@@ -580,7 +580,73 @@ export class BusinessService {
   static verifyMobile(mobile: string): { user: User; customer?: Customer; deliveryBoy?: DeliveryBoy; auditor?: Auditor } {
     const cleanMobile = normalizeMobile(mobile);
     const db = store.getDb();
-    let user = db.users.find((u) => normalizeMobile(u.mobile) === cleanMobile && u.status === 'ACTIVE');
+    let user = db.users.find((u) => normalizeMobile(u.mobile) === cleanMobile);
+
+    if (!user) {
+      // Check if mobile belongs to an existing Customer, Delivery Partner, or Auditor
+      const existingCustomer = db.customers.find((c) => normalizeMobile(c.mobile) === cleanMobile);
+      const existingDelivery = db.deliveryBoys.find((d) => normalizeMobile(d.mobile) === cleanMobile);
+      const existingAuditor = db.auditors.find((a) => normalizeMobile(a.mobile) === cleanMobile);
+
+      if (existingCustomer) {
+        let u = db.users.find((usr) => usr.customerId === existingCustomer.id || normalizeMobile(usr.mobile) === cleanMobile);
+        if (!u) {
+          u = {
+            id: `USR-${existingCustomer.id}`,
+            name: existingCustomer.fullName,
+            mobile: cleanMobile,
+            role: 'CUSTOMER',
+            customerId: existingCustomer.id,
+            status: 'ACTIVE',
+            createdAt: getToday(),
+            updatedAt: getToday(),
+          };
+          db.users.push(u);
+          store.save();
+        } else {
+          u.status = 'ACTIVE';
+        }
+        user = u;
+      } else if (existingDelivery) {
+        let u = db.users.find((usr) => usr.deliveryBoyId === existingDelivery.id || normalizeMobile(usr.mobile) === cleanMobile);
+        if (!u) {
+          u = {
+            id: `USR-${existingDelivery.id}`,
+            name: existingDelivery.fullName,
+            mobile: cleanMobile,
+            role: 'DELIVERY_BOY',
+            deliveryBoyId: existingDelivery.id,
+            status: 'ACTIVE',
+            createdAt: getToday(),
+            updatedAt: getToday(),
+          };
+          db.users.push(u);
+          store.save();
+        } else {
+          u.status = 'ACTIVE';
+        }
+        user = u;
+      } else if (existingAuditor) {
+        let u = db.users.find((usr) => usr.auditorId === existingAuditor.id || normalizeMobile(usr.mobile) === cleanMobile);
+        if (!u) {
+          u = {
+            id: `USR-${existingAuditor.id}`,
+            name: existingAuditor.fullName,
+            mobile: cleanMobile,
+            role: 'AUDITOR',
+            auditorId: existingAuditor.id,
+            status: 'ACTIVE',
+            createdAt: getToday(),
+            updatedAt: getToday(),
+          };
+          db.users.push(u);
+          store.save();
+        } else {
+          u.status = 'ACTIVE';
+        }
+        user = u;
+      }
+    }
 
     if (!user) {
       if (cleanMobile.length !== 10) {
@@ -591,7 +657,7 @@ export class BusinessService {
         throw new Error(conflict.message);
       }
       
-      // Auto-register customer and user
+      // Auto-register customer and user for brand new mobile numbers
       const systemAdminUser: User = {
         id: 'USR-SYSTEM',
         name: 'System Registrar',
@@ -608,8 +674,7 @@ export class BusinessService {
         isPantryAllowed: true,
       }, systemAdminUser);
       
-      // Find the newly registered user
-      user = db.users.find((u) => u.customerId === newCust.id);
+      user = db.users.find((u) => u.customerId === newCust.id || normalizeMobile(u.mobile) === cleanMobile);
       if (!user) {
         throw new Error('Database error during auto-registration. Please try again.');
       }
