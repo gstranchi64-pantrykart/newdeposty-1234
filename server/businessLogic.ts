@@ -1381,6 +1381,18 @@ export class BusinessService {
       mobile: auditor.mobile, // keep normalized mobile
     });
 
+    // Synchronize customer.assignedAuditorId
+    if (Array.isArray(data.assignedCustomerIds)) {
+      const assignedSet = new Set(data.assignedCustomerIds);
+      db.customers.forEach((c) => {
+        if (assignedSet.has(c.id)) {
+          (c as any).assignedAuditorId = id;
+        } else if ((c as any).assignedAuditorId === id) {
+          delete (c as any).assignedAuditorId;
+        }
+      });
+    }
+
     // If status changed, sync associated login user status
     if (data.status && data.status !== oldStatus) {
       const associatedUser = db.users.find((u) => u.auditorId === id || normalizeMobile(u.mobile) === auditor.mobile);

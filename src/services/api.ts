@@ -308,6 +308,17 @@ export const api = {
   },
 
   updateAuditor: async (id: string, data: Partial<Auditor>) => {
+    try {
+      clientStore.updateAuditor(id, data);
+      const savedAuditor = localStorage.getItem('pm_auditor');
+      if (savedAuditor) {
+        const parsed = JSON.parse(savedAuditor);
+        if (parsed.id === id) {
+          localStorage.setItem('pm_auditor', JSON.stringify({ ...parsed, ...data }));
+        }
+      }
+    } catch {}
+
     return safeFetchJson(
       `/api/auditors/${id}`,
       {

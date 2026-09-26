@@ -33,8 +33,9 @@ import {
   BarChart3,
   Sparkles,
   Palette,
+  Phone,
 } from 'lucide-react';
-import { UserRole, hasPantryAccess } from '../../types';
+import { UserRole, hasPantryAccess, Auditor } from '../../types';
 import { api } from '../../services/api';
 import { AdminNotificationCenter } from '../admin/AdminNotificationCenter';
 import { useTheme } from '../../context/ThemeContext';
@@ -77,6 +78,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileExpandedSection, setMobileExpandedSection] = useState<string | null>('stock');
+  const [auditors, setAuditors] = useState<Auditor[]>([]);
+  const [showAuditorModal, setShowAuditorModal] = useState(false);
+
+  useEffect(() => {
+    api.getAuditors().then(setAuditors).catch(() => {});
+  }, []);
+
+  const primaryAuditor = auditors.find((a) => a.status === 'ACTIVE') || auditors[0];
 
   const navRef = useRef<HTMLDivElement>(null);
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Product, ProductBatch, Customer, hasPantryAccess, CustomerProductTimeline, PantryCardItem } from '../../types';
+import { Product, ProductBatch, Customer, hasPantryAccess, CustomerProductTimeline, PantryCardItem, Auditor } from '../../types';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { ImageWithFallback } from '../common/ImageWithFallback';
@@ -27,6 +27,8 @@ import {
   CheckCircle2,
   QrCode,
   X,
+  Phone,
+  MapPin,
 } from 'lucide-react';
 
 interface CustomerStorefrontProps {
@@ -75,7 +77,6 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
   const [customerTimelines, setCustomerTimelines] = useState<CustomerProductTimeline[]>([]);
   const [selectedTimelineForView, setSelectedTimelineForView] = useState<CustomerProductTimeline | null>(null);
   const [customerPantryItems, setCustomerPantryItems] = useState<PantryCardItem[]>([]);
-
   const fetchData = async () => {
     setLoading(true);
     try {

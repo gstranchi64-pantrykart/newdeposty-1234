@@ -463,6 +463,18 @@ class ClientStoreService {
     if (idx === -1) throw new Error(`Auditor ${id} not found`);
     this.db.auditors[idx] = { ...this.db.auditors[idx], ...updates };
 
+    // Synchronize customer.assignedAuditorId if assignedCustomerIds was modified
+    if (Array.isArray(updates.assignedCustomerIds)) {
+      const assignedSet = new Set(updates.assignedCustomerIds);
+      this.db.customers.forEach((c) => {
+        if (assignedSet.has(c.id)) {
+          (c as any).assignedAuditorId = id;
+        } else if ((c as any).assignedAuditorId === id) {
+          delete (c as any).assignedAuditorId;
+        }
+      });
+    }
+
     const uIdx = this.db.users.findIndex((u) => u.auditorId === id || u.id === `USR-${id}`);
     if (uIdx !== -1) {
       if (updates.fullName) this.db.users[uIdx].name = updates.fullName;

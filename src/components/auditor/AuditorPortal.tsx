@@ -156,6 +156,21 @@ export const AuditorPortal: React.FC = () => {
   const [scheduling, setScheduling] = useState(false);
 
   const [currentAuditorProfile, setCurrentAuditorProfile] = useState<Auditor | null>(auditor || null);
+  const [allRegisteredCustomers, setAllRegisteredCustomers] = useState<Customer[]>([]);
+  const [showAllHouses, setShowAllHouses] = useState(false);
+  const [isAddHouseModalOpen, setIsAddHouseModalOpen] = useState(false);
+  const [addHouseTab, setAddHouseTab] = useState<'NEW' | 'EXISTING'>('NEW');
+  const [newHouseForm, setNewHouseForm] = useState({
+    fullName: '',
+    mobile: '',
+    address: '',
+    area: 'Lalpur',
+    city: 'Ranchi',
+    pinCode: '834001',
+    pantryLimit: 10000,
+  });
+  const [newHouseSaving, setNewHouseSaving] = useState(false);
+  const [existingHouseSearch, setExistingHouseSearch] = useState('');
 
   const fetchCustomersAndPastAudits = async () => {
     setLoading(true);
@@ -169,17 +184,28 @@ export const AuditorPortal: React.FC = () => {
         api.getAuditorReturnOrders(myAudId ? { auditorId: myAudId } : undefined),
       ]);
 
+      const cleanUserMobile = (user?.mobile || '').replace(/\D/g, '').slice(-10);
       const myAuditor =
         audList.find(
-          (a) => a.id === auditor?.id || a.id === user?.auditorId || a.mobile === user?.mobile
+          (a) =>
+            (auditor?.id && a.id === auditor.id) ||
+            (user?.auditorId && a.id === user.auditorId) ||
+            (cleanUserMobile && a.mobile.replace(/\D/g, '').slice(-10) === cleanUserMobile) ||
+            (user?.name && a.fullName.trim().toLowerCase() === user.name.trim().toLowerCase())
         ) || auditor || audList[0];
 
       setCurrentAuditorProfile(myAuditor || null);
+      setAllRegisteredCustomers(cList);
 
-      // Scoped View: If auditor is configured, show only assigned customers!
+      // Scoped View: If auditor is configured and showAllHouses is false, show assigned customers
       let filteredCustomers = cList;
-      if (myAuditor && Array.isArray(myAuditor.assignedCustomerIds) && myAuditor.assignedCustomerIds.length > 0) {
-        filteredCustomers = cList.filter((c) => myAuditor.assignedCustomerIds?.includes(c.id));
+      const assignedIds = new Set(myAuditor?.assignedCustomerIds || []);
+      const hasDirectAssignments = assignedIds.size > 0 || cList.some((c) => (c as any).assignedAuditorId === myAuditor?.id);
+
+      if (!showAllHouses && myAuditor && hasDirectAssignments) {
+        filteredCustomers = cList.filter(
+          (c) => assignedIds.has(c.id) || (c as any).assignedAuditorId === myAuditor.id
+        );
       }
 
       setCustomers(filteredCustomers);
@@ -196,6 +222,84 @@ export const AuditorPortal: React.FC = () => {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateAndAssignHouse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setNewHouseSaving(true);
+    try {
+      const cleanMobile = newHouseForm.mobile.replace(/\D/g, '').slice(-10);
+      if (cleanMobile.length !== 10) {
+        alert('Please enter a valid 10-digit mobile number');
+        return;
+      }
+
+      const avail = await api.checkMobileAvailability(cleanMobile);
+      if (!avail.available) {
+        alert(avail.error || 'This mobile number is already registered.');
+        return;
+      }
+
+      const created = await api.createCustomer({
+        fullName: newHouseForm.fullName,
+        mobile: cleanMobile,
+        address: newHouseForm.address,
+        area: newHouseForm.area,
+        city: newHouseForm.city,
+        pinCode: newHouseForm.pinCode,
+        pantryLimit: Number(newHouseForm.pantryLimit) || 10000,
+        availablePantryLimit: Number(newHouseForm.pantryLimit) || 10000,
+        isPantryAllowed: true,
+      });
+
+      if (currentAuditorProfile) {
+        const updatedIds = Array.from(new Set([...(currentAuditorProfile.assignedCustomerIds || []), created.id]));
+        await api.updateAuditor(currentAuditorProfile.id, {
+          assignedCustomerIds: updatedIds,
+        });
+        setCurrentAuditorProfile({
+          ...currentAuditorProfile,
+          assignedCustomerIds: updatedIds,
+        });
+      }
+
+      alert(`✅ Household "${created.fullName}" registered & assigned to your route!`);
+      setIsAddHouseModalOpen(false);
+      setNewHouseForm({
+        fullName: '',
+        mobile: '',
+        address: '',
+        area: 'Lalpur',
+        city: 'Ranchi',
+        pinCode: '834001',
+        pantryLimit: 10000,
+      });
+
+      await fetchCustomersAndPastAudits();
+      setSelectedCustomerId(created.id);
+    } catch (err: any) {
+      alert(err.message || 'Failed to add household');
+    } finally {
+      setNewHouseSaving(false);
+    }
+  };
+
+  const handleToggleLinkExistingHouse = async (custId: string) => {
+    if (!currentAuditorProfile) return;
+    const currentList = currentAuditorProfile.assignedCustomerIds || [];
+    let updated: string[];
+    if (currentList.includes(custId)) {
+      updated = currentList.filter((id) => id !== custId);
+    } else {
+      updated = [...currentList, custId];
+    }
+    try {
+      await api.updateAuditor(currentAuditorProfile.id, { assignedCustomerIds: updated });
+      setCurrentAuditorProfile({ ...currentAuditorProfile, assignedCustomerIds: updated });
+      await fetchCustomersAndPastAudits();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update assignment');
     }
   };
 
@@ -740,36 +844,93 @@ export const AuditorPortal: React.FC = () => {
         );
       })()}
 
+      {/* Official Field Auditor Identity Badge Card */}
+      <div className="bg-gradient-to-r from-slate-900 via-cyan-950 to-slate-900 rounded-3xl p-4 sm:p-5 text-white shadow-xl border border-cyan-800/60 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-cyan-600/30 border-2 border-cyan-400/50 flex items-center justify-center text-cyan-300 shadow-lg shadow-cyan-900/40 shrink-0">
+            <ShieldCheck className="w-8 h-8" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-base sm:text-lg font-black text-white tracking-tight">
+                {currentAuditorProfile?.fullName || auditor?.fullName || user?.name || 'Field Auditor'}
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wider uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">
+                OFFICIAL AUDITOR
+              </span>
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                  currentAuditorProfile?.status === 'INACTIVE'
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                }`}
+              >
+                ● {currentAuditorProfile?.status || 'ACTIVE'}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-slate-300 font-medium">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400 font-bold">Auditor ID:</span>
+                <span className="font-mono font-black text-cyan-300 bg-cyan-950 px-2 py-0.5 rounded border border-cyan-700/60">
+                  {currentAuditorProfile?.id || auditor?.id || user?.auditorId || 'AUD-001'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400 font-bold">Mobile:</span>
+                <span className="font-mono font-black text-white bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700">
+                  +91 {currentAuditorProfile?.mobile || auditor?.mobile || user?.mobile || '9876500001'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+                <span>{currentAuditorProfile?.assignedZone || 'Central Ranchi (Zone A)'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 pt-3 md:pt-0 border-slate-800">
+          <div className="text-left md:text-right">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Assigned Route</div>
+            <div className="text-sm font-black text-cyan-300 font-mono">
+              {currentAuditorProfile?.assignedCustomerIds?.length || 0} Household{(currentAuditorProfile?.assignedCustomerIds?.length || 0) !== 1 ? 's' : ''}
+            </div>
+          </div>
+          <button
+            onClick={() => setIsAddHouseModalOpen(true)}
+            className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md shadow-cyan-900/40 transition cursor-pointer shrink-0"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>+ Enroll House</span>
+          </button>
+        </div>
+      </div>
+
       {/* Top Navigation & Household Selection */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sticky top-4 z-50 flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-cyan-700 flex items-center justify-center text-white">
+          <div className="w-10 h-10 rounded-xl bg-cyan-700 flex items-center justify-center text-white shrink-0">
             <ShieldCheck className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-black text-slate-900 tracking-tight leading-tight">
+              <h2 className="text-xs font-black text-slate-900 tracking-tight leading-tight">
                 {currentAuditorProfile?.fullName || auditor?.fullName || 'Field Officer'}
               </h2>
-              <span
-                className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
-                  currentAuditorProfile?.status === 'INACTIVE'
-                    ? 'bg-rose-100 text-rose-700'
-                    : 'bg-emerald-100 text-emerald-700'
-                }`}
-              >
-                {currentAuditorProfile?.status || 'ACTIVE'}
+              <span className="font-mono text-[10px] font-black text-cyan-800 bg-cyan-50 px-1.5 py-0.5 rounded border border-cyan-200">
+                {currentAuditorProfile?.id || 'AUD-001'}
               </span>
             </div>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-              {currentAuditorProfile?.id || 'AUD-001'} • {customers.length} Assigned Customer{customers.length !== 1 ? 's' : ''}
+            <p className="text-[10px] text-slate-500 font-bold">
+              📞 +91 {currentAuditorProfile?.mobile || auditor?.mobile || user?.mobile || '9876500001'} • {customers.length} House{customers.length !== 1 ? 's' : ''} in route
             </p>
           </div>
         </div>
 
-        {/* HOUSEHOLD SELECTOR DROPDOWN */}
-        <div className="flex-1 w-full max-w-md">
-          <div className="relative group">
+        {/* HOUSEHOLD SELECTOR DROPDOWN & ADD BUTTON */}
+        <div className="flex-1 w-full max-w-lg flex items-center gap-2">
+          <div className="relative group flex-1">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
               <Building className="w-4 h-4 text-slate-400 group-focus-within:text-cyan-600" />
             </div>
@@ -778,7 +939,7 @@ export const AuditorPortal: React.FC = () => {
               onChange={(e) => setSelectedCustomerId(e.target.value)}
               className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs font-black text-slate-800 focus:outline-none focus:border-cyan-600 focus:ring-4 focus:ring-cyan-50 transition appearance-none cursor-pointer"
             >
-              <option value="">-- SEARCH & SELECT ASSIGNED HOUSEHOLD ({customers.length}) --</option>
+              <option value="">-- SELECT HOUSEHOLD ({customers.length} {showAllHouses ? 'total' : 'in route'}) --</option>
               {customers.map((c) => {
                 const hasRejected = allAudits.some(
                   (a) =>
@@ -799,6 +960,38 @@ export const AuditorPortal: React.FC = () => {
               <Search className="w-4 h-4 text-slate-400" />
             </div>
           </div>
+
+          <button
+            onClick={() => setIsAddHouseModalOpen(true)}
+            className="px-3 py-2.5 rounded-xl bg-cyan-700 hover:bg-cyan-800 text-white font-black text-xs flex items-center gap-1.5 shadow-md shadow-cyan-100 transition shrink-0 cursor-pointer"
+            title="Register New Household or Assign to Route"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>+ House</span>
+          </button>
+
+          <button
+            onClick={() => {
+              const next = !showAllHouses;
+              setShowAllHouses(next);
+              let filtered = allRegisteredCustomers;
+              if (!next && currentAuditorProfile && Array.isArray(currentAuditorProfile.assignedCustomerIds) && currentAuditorProfile.assignedCustomerIds.length > 0) {
+                filtered = allRegisteredCustomers.filter((c) => currentAuditorProfile.assignedCustomerIds?.includes(c.id));
+              }
+              setCustomers(filtered);
+              if (filtered.length > 0 && !filtered.some((c) => c.id === selectedCustomerId)) {
+                setSelectedCustomerId(filtered[0].id);
+              }
+            }}
+            className={`px-2.5 py-2.5 rounded-xl text-[11px] font-bold border transition shrink-0 cursor-pointer ${
+              showAllHouses
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+            }`}
+            title={showAllHouses ? 'Click to show only assigned route' : 'Click to show all registered houses'}
+          >
+            {showAllHouses ? 'All' : 'Route'}
+          </button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -855,15 +1048,36 @@ export const AuditorPortal: React.FC = () => {
 
       {/* Main Working Area Content */}
       {!selectedCustomerId && activeTab !== 'scheduled' && activeTab !== 'history' && activeTab !== 'returns' ? (
-        <div className="bg-white rounded-3xl border-2 border-dashed border-slate-200 p-20 text-center space-y-4 animate-in zoom-in duration-300">
-          <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto ring-8 ring-slate-50/50">
-            <Building className="w-10 h-10 text-slate-300" />
+        <div className="bg-white rounded-3xl border-2 border-dashed border-slate-200 p-12 text-center space-y-4 animate-in zoom-in duration-300">
+          <div className="w-20 h-20 bg-cyan-50 rounded-full flex items-center justify-center mx-auto ring-8 ring-cyan-50/50 text-cyan-600">
+            <Building className="w-10 h-10" />
           </div>
-          <div className="space-y-2">
-            <h3 className="text-xl font-black text-slate-900">Select Household</h3>
-            <p className="text-slate-500 max-w-xs mx-auto text-sm font-medium">
-              Use the dropdown menu at the top to select an active household. All inventory and ledger data will be filtered for that specific customer.
+          <div className="space-y-1">
+            <h3 className="text-xl font-black text-slate-900">No Household Selected</h3>
+            <p className="text-slate-500 max-w-md mx-auto text-xs font-medium">
+              Select an assigned household above, or click below to enroll a new house / link any registered household to your audit route.
             </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button
+              onClick={() => setIsAddHouseModalOpen(true)}
+              className="px-5 py-2.5 rounded-xl bg-cyan-700 hover:bg-cyan-800 text-white text-xs font-black flex items-center gap-2 shadow-lg shadow-cyan-100 transition cursor-pointer"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>+ Register / Link Household</span>
+            </button>
+            <button
+              onClick={() => {
+                setShowAllHouses(true);
+                setCustomers(allRegisteredCustomers);
+                if (allRegisteredCustomers.length > 0) {
+                  setSelectedCustomerId(allRegisteredCustomers[0].id);
+                }
+              }}
+              className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black transition cursor-pointer"
+            >
+              <span>Browse All Registered Houses ({allRegisteredCustomers.length})</span>
+            </button>
           </div>
         </div>
       ) : (
@@ -3084,6 +3298,222 @@ export const AuditorPortal: React.FC = () => {
           pantryItems={pantryItems}
           orders={customerOrders}
         />
+      )}
+
+      {/* Register New Household or Assign Existing to Route Modal */}
+      {isAddHouseModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-cyan-700 flex items-center justify-center text-white shadow-md shadow-cyan-100">
+                  <Building className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">Manage Audit Route Households</h3>
+                  <p className="text-xs text-slate-500 font-medium">Add new house or link registered households</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAddHouseModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Tabs */}
+            <div className="flex rounded-xl bg-slate-100 p-1 gap-1">
+              <button
+                onClick={() => setAddHouseTab('NEW')}
+                className={`flex-1 py-2 rounded-lg text-xs font-black transition cursor-pointer ${
+                  addHouseTab === 'NEW'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                + Register New House
+              </button>
+              <button
+                onClick={() => setAddHouseTab('EXISTING')}
+                className={`flex-1 py-2 rounded-lg text-xs font-black transition cursor-pointer ${
+                  addHouseTab === 'EXISTING'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Link Registered Houses ({allRegisteredCustomers.length})
+              </button>
+            </div>
+
+            {addHouseTab === 'NEW' ? (
+              <form onSubmit={handleCreateAndAssignHouse} className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Head of Family / Customer Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newHouseForm.fullName}
+                    onChange={(e) => setNewHouseForm({ ...newHouseForm, fullName: e.target.value })}
+                    placeholder="e.g. Rameshwar Sahay"
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:outline-none font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    10-Digit Mobile Number *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    maxLength={10}
+                    value={newHouseForm.mobile}
+                    onChange={(e) => setNewHouseForm({ ...newHouseForm, mobile: e.target.value.replace(/\D/g, '') })}
+                    placeholder="e.g. 9876543210"
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:outline-none font-mono font-bold"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Area / Colony
+                    </label>
+                    <input
+                      type="text"
+                      value={newHouseForm.area}
+                      onChange={(e) => setNewHouseForm({ ...newHouseForm, area: e.target.value })}
+                      placeholder="e.g. Lalpur / Morabadi"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:outline-none font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Pantry Credit Limit (₹)
+                    </label>
+                    <input
+                      type="number"
+                      value={newHouseForm.pantryLimit}
+                      onChange={(e) => setNewHouseForm({ ...newHouseForm, pantryLimit: Number(e.target.value) })}
+                      placeholder="10000"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:outline-none font-mono font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Complete House Address
+                  </label>
+                  <input
+                    type="text"
+                    value={newHouseForm.address}
+                    onChange={(e) => setNewHouseForm({ ...newHouseForm, address: e.target.value })}
+                    placeholder="e.g. Flat 301, Kailash Tower, Main Road"
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:outline-none font-medium"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddHouseModalOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={newHouseSaving}
+                    className="px-5 py-2 rounded-xl bg-cyan-700 hover:bg-cyan-800 text-white text-xs font-black shadow-md shadow-cyan-100 transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    {newHouseSaving ? 'Saving Household...' : 'Enroll Household to My Route'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by customer name, mobile or area..."
+                    value={existingHouseSearch}
+                    onChange={(e) => setExistingHouseSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                  {allRegisteredCustomers
+                    .filter((c) => {
+                      const q = existingHouseSearch.toLowerCase();
+                      if (!q) return true;
+                      return (
+                        c.fullName.toLowerCase().includes(q) ||
+                        c.mobile.includes(q) ||
+                        (c.area && c.area.toLowerCase().includes(q)) ||
+                        c.id.toLowerCase().includes(q)
+                      );
+                    })
+                    .map((c) => {
+                      const isLinked = currentAuditorProfile?.assignedCustomerIds?.includes(c.id);
+                      return (
+                        <div
+                          key={c.id}
+                          onClick={() => handleToggleLinkExistingHouse(c.id)}
+                          className={`p-3 rounded-xl border-2 transition cursor-pointer flex items-center justify-between gap-3 ${
+                            isLinked
+                              ? 'bg-cyan-50/80 border-cyan-400 text-cyan-950'
+                              : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-xs">{c.fullName}</span>
+                              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-200/80 text-slate-700">
+                                {c.id}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              📞 +91 {c.mobile} • {c.area || c.city}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-black tracking-wider uppercase ${
+                                isLinked
+                                  ? 'bg-cyan-600 text-white shadow-xs'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              {isLinked ? '✓ Linked' : '+ Link'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                  <span>
+                    Linked to Route: <strong>{currentAuditorProfile?.assignedCustomerIds?.length || 0}</strong> houses
+                  </span>
+                  <button
+                    onClick={() => setIsAddHouseModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-black transition cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
