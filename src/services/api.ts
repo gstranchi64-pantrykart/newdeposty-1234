@@ -135,7 +135,10 @@ export const api = {
     return safeFetchJson(
       '/api/customers',
       { headers: getHeaders() },
-      () => clientStore.getCustomers()
+      async () => {
+        await clientStore.syncWithSupabase();
+        return clientStore.getCustomers();
+      }
     );
   },
 
@@ -143,7 +146,10 @@ export const api = {
     return safeFetchJson(
       `/api/customers/${id}`,
       { headers: getHeaders() },
-      () => clientStore.getCustomerById(id)
+      async () => {
+        await clientStore.syncWithSupabase();
+        return clientStore.getCustomerById(id);
+      }
     );
   },
 
@@ -234,7 +240,10 @@ export const api = {
     return safeFetchJson(
       '/api/delivery-boys',
       { headers: getHeaders() },
-      () => clientStore.getDeliveryBoys()
+      async () => {
+        await clientStore.syncWithSupabase();
+        return clientStore.getDeliveryBoys();
+      }
     );
   },
 
@@ -271,7 +280,10 @@ export const api = {
     return safeFetchJson(
       '/api/auditors',
       { headers: getHeaders() },
-      () => clientStore.getAuditors()
+      async () => {
+        await clientStore.syncWithSupabase();
+        return clientStore.getAuditors();
+      }
     );
   },
 
@@ -319,7 +331,10 @@ export const api = {
     return safeFetchJson(
       `/api/products?publishedOnly=${publishedOnly}`,
       { headers: getHeaders() },
-      () => clientStore.getProducts()
+      async () => {
+        await clientStore.syncWithSupabase();
+        return clientStore.getProducts();
+      }
     );
   },
 

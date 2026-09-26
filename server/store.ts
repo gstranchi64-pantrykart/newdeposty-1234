@@ -2329,6 +2329,7 @@ class DatabaseStore {
 
   public save() {
     this.saveSync();
+    this.syncToSupabase().catch((err: any) => console.warn('[Auto-Sync Supabase Error]:', err.message));
   }
 
   public async syncToSupabase() {

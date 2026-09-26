@@ -4,7 +4,9 @@ import { SupabaseStatusInfo, SupabaseSyncResult } from '../src/types';
 // Default Supabase project credentials provided
 export const DEFAULT_SUPABASE_URL = process.env.SUPABASE_URL || 'https://bgxnmmecjcgrwtemmjtz.supabase.co';
 export const DEFAULT_SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_J6X_PIGF2pyciaHA3o_okg_HHaCulEU';
-export const DEFAULT_SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+export const DEFAULT_SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJneG5tbWVjamNncnd0ZW1tanR6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDEzODA1OCwiZXhwIjoyMTA1NzE0MDU4fQ.dMVk2v3wdELMzAwAP80yuATN0RL9ud6WgJlIZCVimYQ';
 export const DEFAULT_PROJECT_REF = process.env.SUPABASE_PROJECT_REF || 'bgxnmmecjcgrwtemmjtz';
 export const DEFAULT_DB_URL = process.env.SUPABASE_DB_URL || 'postgresql://postgres:[YOUR-PASSWORD]@db.bgxnmmecjcgrwtemmjtz.supabase.co:5432/postgres';
 
@@ -240,8 +242,7 @@ class SupabaseService {
             {
               id: 'latest_state',
               data: dbData,
-              synced_at: timestamp,
-              project_ref: this.projectRef,
+              updated_at: timestamp,
             },
             { onConflict: 'id' }
           );
@@ -506,7 +507,7 @@ class SupabaseService {
     try {
       const { data, error } = await client
         .from('pantry_mart_store')
-        .select('data, synced_at')
+        .select('data, updated_at')
         .eq('id', 'latest_state')
         .single();
 
@@ -521,7 +522,7 @@ class SupabaseService {
         return {
           success: true,
           data: data.data,
-          message: `Successfully pulled latest state snapshot from Supabase synced at ${data.synced_at || 'recent'}.`,
+          message: `Successfully pulled latest state snapshot from Supabase synced at ${data.updated_at || 'recent'}.`,
         };
       }
 

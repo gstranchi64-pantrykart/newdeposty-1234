@@ -1,4 +1,5 @@
 import initialDb from '../../data/db.json';
+import { createClient } from '@supabase/supabase-js';
 import {
   User,
   Customer,
@@ -22,6 +23,10 @@ import {
   WalletRechargeRequest,
   AuditorReturnOrder,
 } from '../types';
+
+const SUPABASE_URL = 'https://bgxnmmecjcgrwtemmjtz.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_J6X_PIGF2pyciaHA3o_okg_HHaCulEU';
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 interface DatabaseSchema {
   users: User[];
@@ -50,9 +55,39 @@ const STORAGE_KEY = 'pantrykart_offline_store_v1';
 
 class ClientStoreService {
   private db: DatabaseSchema;
+  private isSyncingWithSupabase: boolean = false;
 
   constructor() {
     this.db = this.loadDb();
+    if (typeof window !== 'undefined') {
+      this.syncWithSupabase().catch(() => {});
+    }
+  }
+
+  public async syncWithSupabase(): Promise<boolean> {
+    if (this.isSyncingWithSupabase) return false;
+    this.isSyncingWithSupabase = true;
+    try {
+      const { data, error } = await supabaseClient
+        .from('pantry_mart_store')
+        .select('data, updated_at')
+        .eq('id', 'latest_state')
+        .single();
+
+      if (!error && data && data.data) {
+        const cloudDb = data.data as DatabaseSchema;
+        if (Array.isArray(cloudDb.customers) && Array.isArray(cloudDb.auditors)) {
+          this.db = cloudDb;
+          this.saveDb();
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn('[clientStore] Supabase cloud sync notice:', e);
+    } finally {
+      this.isSyncingWithSupabase = false;
+    }
+    return false;
   }
 
   private loadDb(): DatabaseSchema {

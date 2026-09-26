@@ -155,6 +155,7 @@ export const AuditorPortal: React.FC = () => {
   });
   const [scheduling, setScheduling] = useState(false);
 
+  const [allAuditors, setAllAuditors] = useState<Auditor[]>([]);
   const [currentAuditorProfile, setCurrentAuditorProfile] = useState<Auditor | null>(auditor || null);
   const [allRegisteredCustomers, setAllRegisteredCustomers] = useState<Customer[]>([]);
   const [showAllHouses, setShowAllHouses] = useState(false);
@@ -175,7 +176,7 @@ export const AuditorPortal: React.FC = () => {
   const fetchCustomersAndPastAudits = async () => {
     setLoading(true);
     try {
-      const myAudId = auditor?.id || user?.auditorId || '';
+      const myAudId = currentAuditorProfile?.id || auditor?.id || user?.auditorId || '';
       const [cList, chkList, pPayList, audList, audRetList] = await Promise.all([
         api.getCustomers(),
         api.getAuditorChecks(),
@@ -184,15 +185,21 @@ export const AuditorPortal: React.FC = () => {
         api.getAuditorReturnOrders(myAudId ? { auditorId: myAudId } : undefined),
       ]);
 
+      setAllAuditors(audList);
+
       const cleanUserMobile = (user?.mobile || '').replace(/\D/g, '').slice(-10);
+      // Prioritize currently chosen auditor profile, then logged in auditor, user mobile, or fallback
       const myAuditor =
+        (currentAuditorProfile && audList.find((a) => a.id === currentAuditorProfile.id)) ||
         audList.find(
           (a) =>
             (auditor?.id && a.id === auditor.id) ||
             (user?.auditorId && a.id === user.auditorId) ||
             (cleanUserMobile && a.mobile.replace(/\D/g, '').slice(-10) === cleanUserMobile) ||
             (user?.name && a.fullName.trim().toLowerCase() === user.name.trim().toLowerCase())
-        ) || auditor || audList[0];
+        ) ||
+        auditor ||
+        audList[0];
 
       setCurrentAuditorProfile(myAuditor || null);
       setAllRegisteredCustomers(cList);
@@ -200,15 +207,12 @@ export const AuditorPortal: React.FC = () => {
       // Scoped View: If auditor is configured and showAllHouses is false, show assigned customers
       let filteredCustomers = cList;
       const assignedIds = new Set(myAuditor?.assignedCustomerIds || []);
-      const hasDirectAssignments = assignedIds.size > 0 || cList.some((c) => (c as any).assignedAuditorId === myAuditor?.id);
+      const matches = cList.filter(
+        (c) => assignedIds.has(c.id) || (c as any).assignedAuditorId === myAuditor?.id
+      );
 
-      if (!showAllHouses && myAuditor && hasDirectAssignments) {
-        const matches = cList.filter(
-          (c) => assignedIds.has(c.id) || (c as any).assignedAuditorId === myAuditor.id
-        );
-        if (matches.length > 0) {
-          filteredCustomers = matches;
-        }
+      if (!showAllHouses && myAuditor && matches.length > 0) {
+        filteredCustomers = matches;
       }
 
       setCustomers(filteredCustomers);
@@ -880,22 +884,59 @@ export const AuditorPortal: React.FC = () => {
       })()}
 
       {/* Top Navigation & Household Selection */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sticky top-4 z-50 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sticky top-4 z-50 flex flex-col lg:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-cyan-700 flex items-center justify-center text-white shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-cyan-700 flex items-center justify-center text-white shrink-0 shadow-sm">
             <ShieldCheck className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xs font-black text-slate-900 tracking-tight leading-tight">
-                {currentAuditorProfile?.fullName || auditor?.fullName || 'Field Officer'}
-              </h2>
+              {allAuditors.length > 1 ? (
+                <div className="relative">
+                  <select
+                    value={currentAuditorProfile?.id || ''}
+                    onChange={(e) => {
+                      const selectedAud = allAuditors.find((a) => a.id === e.target.value);
+                      if (selectedAud) {
+                        setCurrentAuditorProfile(selectedAud);
+                        const assignedIds = new Set(selectedAud.assignedCustomerIds || []);
+                        const matches = allRegisteredCustomers.filter(
+                          (c) => assignedIds.has(c.id) || (c as any).assignedAuditorId === selectedAud.id
+                        );
+                        const newCustList = showAllHouses || matches.length === 0 ? allRegisteredCustomers : matches;
+                        setCustomers(newCustList);
+                        if (newCustList.length > 0) {
+                          setSelectedCustomerId(newCustList[0].id);
+                        }
+                      }
+                    }}
+                    className="text-xs font-black text-slate-900 bg-cyan-50/70 border border-cyan-300 rounded-lg px-2 py-1 pr-6 cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-500 font-sans"
+                    title="Switch Active Auditor Route"
+                  >
+                    {allAuditors.map((aud) => (
+                      <option key={aud.id} value={aud.id}>
+                        {aud.fullName} ({aud.id}) - {aud.assignedCustomerIds?.length || 0} assigned
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <h2 className="text-xs font-black text-slate-900 tracking-tight leading-tight">
+                  {currentAuditorProfile?.fullName || auditor?.fullName || 'Field Officer'}
+                </h2>
+              )}
               <span className="font-mono text-[10px] font-black text-cyan-800 bg-cyan-50 px-1.5 py-0.5 rounded border border-cyan-200">
                 {currentAuditorProfile?.id || 'AUD-001'}
               </span>
             </div>
-            <p className="text-[10px] text-slate-500 font-bold">
-              📞 +91 {currentAuditorProfile?.mobile || auditor?.mobile || user?.mobile || '9876500001'} • {customers.length} House{customers.length !== 1 ? 's' : ''} in route
+            <p className="text-[10px] text-slate-500 font-bold flex items-center gap-1.5 mt-0.5">
+              <span>📞 +91 {currentAuditorProfile?.mobile || auditor?.mobile || user?.mobile || '9876500001'}</span>
+              <span>•</span>
+              <span className="text-cyan-700 font-extrabold">
+                {currentAuditorProfile?.assignedCustomerIds?.length || 0} Assigned Route
+              </span>
+              <span>•</span>
+              <span>{customers.length} in View</span>
             </p>
           </div>
         </div>
@@ -948,8 +989,14 @@ export const AuditorPortal: React.FC = () => {
               const next = !showAllHouses;
               setShowAllHouses(next);
               let filtered = allRegisteredCustomers;
-              if (!next && currentAuditorProfile && Array.isArray(currentAuditorProfile.assignedCustomerIds) && currentAuditorProfile.assignedCustomerIds.length > 0) {
-                filtered = allRegisteredCustomers.filter((c) => currentAuditorProfile.assignedCustomerIds?.includes(c.id));
+              if (!next && currentAuditorProfile) {
+                const assignedIds = new Set(currentAuditorProfile.assignedCustomerIds || []);
+                const matches = allRegisteredCustomers.filter(
+                  (c) => assignedIds.has(c.id) || (c as any).assignedAuditorId === currentAuditorProfile.id
+                );
+                if (matches.length > 0) {
+                  filtered = matches;
+                }
               }
               setCustomers(filtered);
               if (filtered.length > 0 && !filtered.some((c) => c.id === selectedCustomerId)) {
@@ -963,7 +1010,17 @@ export const AuditorPortal: React.FC = () => {
             }`}
             title={showAllHouses ? 'Click to show only assigned route' : 'Click to show all registered houses'}
           >
-            {showAllHouses ? 'All' : 'Route'}
+            {showAllHouses ? 'All Houses' : 'My Route'}
+          </button>
+
+          <button
+            onClick={() => fetchCustomersAndPastAudits()}
+            disabled={loading}
+            className="px-2.5 py-2.5 rounded-xl text-[11px] font-bold border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition shrink-0 cursor-pointer flex items-center gap-1"
+            title="Sync latest customers & assignments from Supabase Database"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-cyan-600' : 'text-slate-500'}`} />
+            <span className="hidden sm:inline">Sync DB</span>
           </button>
         </div>
 
