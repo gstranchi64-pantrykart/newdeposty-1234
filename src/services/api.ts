@@ -88,6 +88,13 @@ const getHeaders = (userId?: string): Record<string, string> => {
   return headers;
 };
 
+const BACKEND_PRIMARY_HOSTS = [
+  'https://ais-pre-ysan7dqet3ily42p5p7rap-958564531601.asia-southeast1.run.app',
+  'https://ais-dev-ysan7dqet3ily42p5p7rap-958564531601.asia-southeast1.run.app',
+];
+
+let cachedWorkingHost: string | null = null;
+
 // Core Strict Fetch Function: Performs real API request to backend, verifies HTTP 200,
 // and THROWS REAL ERROR if request fails or database rejects write.
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
@@ -104,23 +111,47 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
     },
   };
 
-  let res = await fetch(finalUrl, fetchOpts);
+  const candidateUrls: string[] = [];
+  
+  if (cachedWorkingHost) {
+    candidateUrls.push(`${cachedWorkingHost}${finalUrl}`);
+  }
+  
+  candidateUrls.push(finalUrl);
 
-  // Fallback check for live reverse proxies or CDN path rewrites
-  if (res.status === 404 && url === '/api/auth/verify-mobile') {
+  for (const host of BACKEND_PRIMARY_HOSTS) {
+    const full = `${host}${finalUrl}`;
+    if (!candidateUrls.includes(full)) {
+      candidateUrls.push(full);
+    }
+  }
+
+  let res: Response | null = null;
+  let lastError: Error | null = null;
+
+  for (const targetUrl of candidateUrls) {
     try {
-      const fallbackRes = await fetch('/api/verify-mobile', fetchOpts);
-      if (fallbackRes.ok || fallbackRes.status !== 404) {
-        res = fallbackRes;
+      const response = await fetch(targetUrl, fetchOpts);
+      const ct = response.headers.get('content-type') || '';
+      
+      if ((response.status === 404 || !ct.includes('application/json')) && targetUrl !== candidateUrls[candidateUrls.length - 1]) {
+        continue;
       }
-    } catch (_) {}
-  } else if (res.status === 404 && url === '/api/auth/verify-otp') {
-    try {
-      const fallbackRes = await fetch('/api/verify-otp', fetchOpts);
-      if (fallbackRes.ok || fallbackRes.status !== 404) {
-        res = fallbackRes;
+
+      res = response;
+      if (response.ok && targetUrl.startsWith('http')) {
+        try {
+          cachedWorkingHost = new URL(targetUrl).origin;
+        } catch (_) {}
       }
-    } catch (_) {}
+      break;
+    } catch (e: any) {
+      lastError = e;
+    }
+  }
+
+  if (!res) {
+    throw lastError || new Error(`Network issue connecting to API endpoint (${url})`);
   }
 
   const contentType = res.headers.get('content-type') || '';
