@@ -56,31 +56,7 @@ async function safeFetchJson<T>(
 ): Promise<T> {
   try {
     const res = await fetch(url, options);
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      const text = await res.text();
-      // Server returned HTML (e.g. index.html from static host or 404 rewrite)
-      if (text.trim().startsWith('<')) {
-        if (fallback) {
-          return await fallback();
-        }
-        throw new Error('API server returned HTML. Using offline data store.');
-      }
-      try {
-        const data = JSON.parse(text);
-        if (!res.ok) throw new Error(data.error || 'Server error');
-        return data as T;
-      } catch (e: any) {
-        if (fallback) return await fallback();
-        throw e;
-      }
-    }
-
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Server error occurred');
-    }
-    return data as T;
+    return await handleResponse<T>(res, fallback);
   } catch (err: any) {
     if (fallback) {
       return await fallback();
@@ -89,23 +65,31 @@ async function safeFetchJson<T>(
   }
 }
 
-async function handleResponse<T>(res: globalThis.Response): Promise<T> {
+async function handleResponse<T>(res: globalThis.Response, fallback?: () => T | Promise<T>): Promise<T> {
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
     const text = await res.text();
     if (text.trim().startsWith('<')) {
+      if (fallback) {
+        return await fallback();
+      }
       throw new Error('Server returned HTML instead of JSON. Ensure backend server is running.');
     }
     try {
       const data = JSON.parse(text);
-      if (!res.ok) throw new Error(data.error || 'Server error');
+      if (!res.ok) {
+        if (fallback) return await fallback();
+        throw new Error(data.error || 'Server error');
+      }
       return data as T;
     } catch {
+      if (fallback) return await fallback();
       throw new Error(text || 'Server error occurred');
     }
   }
   const data = await res.json();
   if (!res.ok) {
+    if (fallback) return await fallback();
     throw new Error(data.error || 'Server error occurred');
   }
   return data as T;
@@ -1001,29 +985,38 @@ export const api = {
   },
 
   confirmAuditBill: async (auditId: string) => {
-    const res = await fetch(`/api/audits/${auditId}/confirm-bill`, {
-      method: 'POST',
-      headers: getHeaders(),
-    });
-    return handleResponse<AuditorCheck>(res);
+    return safeFetchJson<AuditorCheck>(
+      `/api/audits/${auditId}/confirm-bill`,
+      {
+        method: 'POST',
+        headers: getHeaders(),
+      },
+      () => clientStore.confirmAuditBill(auditId)
+    );
   },
 
   disputeAuditBill: async (auditId: string, disputeRemarks: string) => {
-    const res = await fetch(`/api/audits/${auditId}/dispute`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ disputeRemarks }),
-    });
-    return handleResponse<AuditorCheck>(res);
+    return safeFetchJson<AuditorCheck>(
+      `/api/audits/${auditId}/dispute`,
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ disputeRemarks }),
+      },
+      () => clientStore.disputeAuditBill(auditId, disputeRemarks)
+    );
   },
 
   rejectAuditBill: async (auditId: string, reason: string) => {
-    const res = await fetch(`/api/audits/${auditId}/reject-bill`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ disputeRemarks: reason, reason }),
-    });
-    return handleResponse<AuditorCheck>(res);
+    return safeFetchJson<AuditorCheck>(
+      `/api/audits/${auditId}/reject-bill`,
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ disputeRemarks: reason, reason }),
+      },
+      () => clientStore.rejectAuditBill(auditId, reason)
+    );
   },
 
   adminReviseAuditBill: async (
@@ -1034,12 +1027,15 @@ export const api = {
       itemsChecked?: any[];
     }
   ) => {
-    const res = await fetch(`/api/audits/${auditId}/admin-revise`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(payload),
-    });
-    return handleResponse<AuditorCheck>(res);
+    return safeFetchJson<AuditorCheck>(
+      `/api/audits/${auditId}/admin-revise`,
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      },
+      () => clientStore.adminReviseAuditBill(auditId, payload)
+    );
   },
 
   getCustomerCreditLedger: async (customerId: string) => {
@@ -1231,45 +1227,63 @@ export const api = {
     isWalletRecharge?: boolean;
     quantity?: number;
   }) => {
-    const res = await fetch('/api/pantry-payments', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(payload),
-    });
-    return handleResponse<PantryPayment>(res);
+    return safeFetchJson<PantryPayment>(
+      '/api/pantry-payments',
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      },
+      () => clientStore.createPantryPayment(payload)
+    );
   },
 
   getCustomerPantryPayments: async (customerId: string) => {
-    const res = await fetch(`/api/pantry-payments/customer/${customerId}`, { headers: getHeaders() });
-    return handleResponse<PantryPayment[]>(res);
+    return safeFetchJson<PantryPayment[]>(
+      `/api/pantry-payments/customer/${customerId}`,
+      { headers: getHeaders() },
+      () => clientStore.getCustomerPantryPayments(customerId)
+    );
   },
 
   getAllPantryPayments: async () => {
-    const res = await fetch('/api/pantry-payments', { headers: getHeaders() });
-    return handleResponse<PantryPayment[]>(res);
+    return safeFetchJson<PantryPayment[]>(
+      '/api/pantry-payments',
+      { headers: getHeaders() },
+      () => clientStore.getAllPantryPayments()
+    );
   },
 
   getPantryPaymentById: async (paymentId: string) => {
-    const res = await fetch(`/api/pantry-payments/${paymentId}`, { headers: getHeaders() });
-    return handleResponse<PantryPayment>(res);
+    return safeFetchJson<PantryPayment>(
+      `/api/pantry-payments/${paymentId}`,
+      { headers: getHeaders() },
+      () => clientStore.getPantryPaymentById(paymentId)
+    );
   },
 
   confirmPantryPayment: async (paymentId: string, remarks?: string) => {
-    const res = await fetch(`/api/pantry-payments/${paymentId}/confirm`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ remarks }),
-    });
-    return handleResponse<PantryPayment>(res);
+    return safeFetchJson<PantryPayment>(
+      `/api/pantry-payments/${paymentId}/confirm`,
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ remarks }),
+      },
+      () => clientStore.confirmPantryPayment(paymentId, remarks)
+    );
   },
 
   rejectPantryPayment: async (paymentId: string, reason?: string) => {
-    const res = await fetch(`/api/pantry-payments/${paymentId}/reject`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ reason }),
-    });
-    return handleResponse<PantryPayment>(res);
+    return safeFetchJson<PantryPayment>(
+      `/api/pantry-payments/${paymentId}/reject`,
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ reason }),
+      },
+      () => clientStore.rejectPantryPayment(paymentId, reason)
+    );
   },
 
   // Settings

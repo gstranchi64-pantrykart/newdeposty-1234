@@ -203,9 +203,12 @@ export const AuditorPortal: React.FC = () => {
       const hasDirectAssignments = assignedIds.size > 0 || cList.some((c) => (c as any).assignedAuditorId === myAuditor?.id);
 
       if (!showAllHouses && myAuditor && hasDirectAssignments) {
-        filteredCustomers = cList.filter(
+        const matches = cList.filter(
           (c) => assignedIds.has(c.id) || (c as any).assignedAuditorId === myAuditor.id
         );
+        if (matches.length > 0) {
+          filteredCustomers = matches;
+        }
       }
 
       setCustomers(filteredCustomers);
@@ -215,6 +218,10 @@ export const AuditorPortal: React.FC = () => {
       if (filteredCustomers.length > 0) {
         setSelectedCustomerId((prev) => (filteredCustomers.some((c) => c.id === prev) ? prev : filteredCustomers[0].id));
         setScheduleForm((prev) => ({ ...prev, customerId: filteredCustomers[0].id }));
+      } else if (cList.length > 0) {
+        setCustomers(cList);
+        setSelectedCustomerId(cList[0].id);
+        setScheduleForm((prev) => ({ ...prev, customerId: cList[0].id }));
       } else {
         setSelectedCustomerId('');
       }
@@ -814,7 +821,7 @@ export const AuditorPortal: React.FC = () => {
         if (rejectedAuditsList.length === 0) return null;
 
         return (
-          <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 text-rose-950 animate-in slide-in-from-top-2">
+          <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3 text-rose-950 animate-in slide-in-from-top-2">
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
               <div>
@@ -822,90 +829,55 @@ export const AuditorPortal: React.FC = () => {
                   Action Required: {rejectedAuditsList.length} Audit Bill{rejectedAuditsList.length > 1 ? 's' : ''} Rejected by Customer
                 </h4>
                 <p className="text-xs text-rose-800 mt-0.5">
-                  The customer has reviewed their bill and requested corrections. Click below to reopen the audit with all previously filled data and reduced quantities restored.
+                  The following customer(s) have reviewed their audit bills and requested corrections. Reopen any bill to inspect, modify quantities, and generate the revised bill.
                 </p>
-                {rejectedAuditsList[0].customerRejectionReason && (
-                  <div className="text-[11px] font-bold text-rose-700 mt-1">
-                    Feedback for {rejectedAuditsList[0].customerName}: &ldquo;{rejectedAuditsList[0].customerRejectionReason}&rdquo;
-                  </div>
-                )}
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => handleStartRevisingAudit(rejectedAuditsList[0])}
-              className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Reopen &amp; Revise Bill #{rejectedAuditsList[0].billId || rejectedAuditsList[0].id}</span>
-            </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+              {rejectedAuditsList.map((audit) => (
+                <div
+                  key={audit.id}
+                  className="bg-white border-2 border-rose-200 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between gap-2.5"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-black text-xs text-slate-900 flex items-center gap-1.5">
+                        <span>{audit.customerName || 'Customer'}</span>
+                        <span className="font-mono text-[10px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded font-bold">
+                          {audit.customerId}
+                        </span>
+                      </div>
+                      <span className="font-mono text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                        Bill #{audit.billId || audit.id}
+                      </span>
+                    </div>
+
+                    {audit.customerRejectionReason && (
+                      <div className="text-[11px] text-rose-700 font-semibold bg-rose-50/80 p-2 rounded-lg border border-rose-100">
+                        <strong className="text-rose-900">Reason:</strong> &ldquo;{audit.customerRejectionReason}&rdquo;
+                      </div>
+                    )}
+
+                    <div className="text-[10px] text-slate-500 font-medium">
+                      Date: {audit.billGeneratedDate || audit.requestedDate || audit.createdAt} {audit.billGeneratedTime ? `at ${audit.billGeneratedTime}` : ''} • Items: {audit.totalItemsCount || audit.itemsChecked?.length || 0}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleStartRevisingAudit(audit)}
+                    className="w-full px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-black transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Reopen &amp; Revise Bill for {audit.customerName} ({audit.customerId})</span>
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         );
       })()}
-
-      {/* Official Field Auditor Identity Badge Card */}
-      <div className="bg-gradient-to-r from-slate-900 via-cyan-950 to-slate-900 rounded-3xl p-4 sm:p-5 text-white shadow-xl border border-cyan-800/60 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-cyan-600/30 border-2 border-cyan-400/50 flex items-center justify-center text-cyan-300 shadow-lg shadow-cyan-900/40 shrink-0">
-            <ShieldCheck className="w-8 h-8" />
-          </div>
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-base sm:text-lg font-black text-white tracking-tight">
-                {currentAuditorProfile?.fullName || auditor?.fullName || user?.name || 'Field Auditor'}
-              </span>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wider uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">
-                OFFICIAL AUDITOR
-              </span>
-              <span
-                className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                  currentAuditorProfile?.status === 'INACTIVE'
-                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                }`}
-              >
-                ● {currentAuditorProfile?.status || 'ACTIVE'}
-              </span>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-slate-300 font-medium">
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-400 font-bold">Auditor ID:</span>
-                <span className="font-mono font-black text-cyan-300 bg-cyan-950 px-2 py-0.5 rounded border border-cyan-700/60">
-                  {currentAuditorProfile?.id || auditor?.id || user?.auditorId || 'AUD-001'}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-400 font-bold">Mobile:</span>
-                <span className="font-mono font-black text-white bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700">
-                  +91 {currentAuditorProfile?.mobile || auditor?.mobile || user?.mobile || '9876500001'}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-cyan-400" />
-                <span>{currentAuditorProfile?.assignedZone || 'Central Ranchi (Zone A)'}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 pt-3 md:pt-0 border-slate-800">
-          <div className="text-left md:text-right">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Assigned Route</div>
-            <div className="text-sm font-black text-cyan-300 font-mono">
-              {currentAuditorProfile?.assignedCustomerIds?.length || 0} Household{(currentAuditorProfile?.assignedCustomerIds?.length || 0) !== 1 ? 's' : ''}
-            </div>
-          </div>
-          <button
-            onClick={() => setIsAddHouseModalOpen(true)}
-            className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md shadow-cyan-900/40 transition cursor-pointer shrink-0"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>+ Enroll House</span>
-          </button>
-        </div>
-      </div>
 
       {/* Top Navigation & Household Selection */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sticky top-4 z-50 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -939,8 +911,9 @@ export const AuditorPortal: React.FC = () => {
               onChange={(e) => setSelectedCustomerId(e.target.value)}
               className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs font-black text-slate-800 focus:outline-none focus:border-cyan-600 focus:ring-4 focus:ring-cyan-50 transition appearance-none cursor-pointer"
             >
-              <option value="">-- SELECT HOUSEHOLD ({customers.length} {showAllHouses ? 'total' : 'in route'}) --</option>
+              <option value="">-- SELECT HOUSEHOLD ({customers.length} {showAllHouses ? 'total registered' : 'in assigned route'}) --</option>
               {customers.map((c) => {
+                const isAssigned = (currentAuditorProfile?.assignedCustomerIds || []).includes(c.id) || (c as any).assignedAuditorId === currentAuditorProfile?.id;
                 const hasRejected = allAudits.some(
                   (a) =>
                     a.customerId === c.id &&
@@ -951,7 +924,7 @@ export const AuditorPortal: React.FC = () => {
                 );
                 return (
                   <option key={c.id} value={c.id}>
-                    {c.id} - {c.fullName} (+91 {c.mobile}){hasRejected ? ' ⚠️ [REJECTED BILL - REVISION NEEDED]' : ''}
+                    {isAssigned ? '✅ ' : ''}{c.id} - {c.fullName} (+91 {c.mobile}){isAssigned ? ' [Assigned Route]' : ''}{hasRejected ? ' ⚠️ [REJECTED BILL - REVISION NEEDED]' : ''}
                   </option>
                 );
               })}

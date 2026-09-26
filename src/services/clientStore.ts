@@ -614,6 +614,232 @@ class ClientStoreService {
     if (!customerId) return this.db.walletTransactions;
     return this.db.walletTransactions.filter((w) => w.customerId === customerId);
   }
+
+  // --- Audit Bill Approval & Operations ---
+  public confirmAuditBill(auditId: string): AuditorCheck {
+    if (!this.db.auditorChecks) this.db.auditorChecks = [];
+    const audit = this.db.auditorChecks.find((a) => a.id === auditId || a.billId === auditId);
+    if (!audit) throw new Error(`Audit bill ${auditId} not found`);
+
+    const nowIso = new Date().toISOString();
+    const today = nowIso.split('T')[0];
+
+    audit.isBillLocked = true;
+    audit.billStatus = 'LOCKED';
+    audit.isBillConfirmed = true;
+    audit.customerSignatureStatus = true;
+    (audit as any).customerConfirmationStatus = 'CONFIRMED';
+    audit.status = 'COMPLETED';
+    audit.billConfirmedAt = nowIso;
+    audit.billLockedAt = nowIso;
+    audit.updatedAt = nowIso;
+
+    // Deduct wallet if required
+    const totalDeductions = audit.totalWalletDeduction || 0;
+    if (totalDeductions > 0) {
+      const customer = this.db.customers.find((c) => c.id === audit.customerId);
+      if (customer) {
+        const prevBal = customer.walletBalance ?? 1000;
+        const newBal = prevBal - totalDeductions;
+        customer.walletBalance = newBal;
+        customer.updatedAt = today;
+
+        if (!this.db.walletTransactions) this.db.walletTransactions = [];
+        this.db.walletTransactions.unshift({
+          id: `WTX-${Date.now().toString().slice(-6)}`,
+          customerId: customer.id,
+          customerName: customer.fullName,
+          transactionType: 'AUDIT_DEDUCTION',
+          amount: totalDeductions,
+          previousBalance: prevBal,
+          newBalance: newBal,
+          referenceId: audit.billId || audit.id,
+          userId: 'SYSTEM',
+          role: 'CUSTOMER',
+          reason: `Audit Bill Settlement #${audit.billId || audit.id} Approved by Customer`,
+          date: today,
+          time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          timestamp: nowIso,
+          status: 'SUCCESS',
+        });
+      }
+    }
+
+    this.saveDb();
+    return audit;
+  }
+
+  public rejectAuditBill(auditId: string, reason: string): AuditorCheck {
+    if (!this.db.auditorChecks) this.db.auditorChecks = [];
+    const audit = this.db.auditorChecks.find((a) => a.id === auditId || a.billId === auditId);
+    if (!audit) throw new Error(`Audit bill ${auditId} not found`);
+
+    const nowIso = new Date().toISOString();
+    audit.status = 'CUSTOMER_REJECTED';
+    audit.billStatus = 'CUSTOMER_REJECTED';
+    audit.isBillConfirmed = false;
+    audit.isBillLocked = false;
+    audit.customerRejectionReason = reason;
+    (audit as any).disputeRemarks = reason;
+    audit.updatedAt = nowIso;
+
+    this.saveDb();
+    return audit;
+  }
+
+  public disputeAuditBill(auditId: string, disputeRemarks: string): AuditorCheck {
+    return this.rejectAuditBill(auditId, disputeRemarks);
+  }
+
+  public adminReviseAuditBill(auditId: string, payload: { reason: string; overallRemarks?: string }): AuditorCheck {
+    if (!this.db.auditorChecks) this.db.auditorChecks = [];
+    const audit = this.db.auditorChecks.find((a) => a.id === auditId || a.billId === auditId);
+    if (!audit) throw new Error(`Audit bill ${auditId} not found`);
+
+    const nowIso = new Date().toISOString();
+    audit.isBillLocked = false;
+    audit.billStatus = 'CUSTOMER_PENDING_CONFIRMATION';
+    audit.status = 'PENDING_CONFIRMATION';
+    audit.billVersion = (audit.billVersion || 1) + 1;
+    audit.revisionCount = (audit.revisionCount || 0) + 1;
+    audit.updatedAt = nowIso;
+    audit.overallRemarks = payload.overallRemarks || `[Revised by Admin: ${payload.reason}] ${audit.overallRemarks || ''}`;
+
+    this.saveDb();
+    return audit;
+  }
+
+  // --- Pantry Pay Operations ---
+  public createPantryPayment(payload: {
+    customerId: string;
+    productId: string;
+    productName: string;
+    barcode: string;
+    productImage?: string;
+    amount: number;
+    paymentMethod: 'UPI' | 'BANK';
+    transactionRef?: string;
+    paymentType?: 'PRODUCT_PAYMENT' | 'WALLET_RECHARGE';
+    isWalletRecharge?: boolean;
+    quantity?: number;
+  }): PantryPayment {
+    if (!this.db.pantryPayments) this.db.pantryPayments = [];
+    const customer = this.db.customers.find((c) => c.id === payload.customerId || c.mobile === payload.customerId);
+    const isRecharge = payload.isWalletRecharge === true || payload.paymentType === 'WALLET_RECHARGE' || payload.productId.includes('WALLET');
+
+    const payId = isRecharge ? `PPAY-WREC-${Date.now().toString().slice(-6)}` : `PPAY-${Date.now().toString().slice(-6)}`;
+    const txRef = payload.transactionRef || `${payload.paymentMethod || 'UPI'}-${Date.now().toString().slice(-8)}`;
+    const nowIso = new Date().toISOString();
+    const today = nowIso.split('T')[0];
+
+    const payment: PantryPayment = {
+      id: payId,
+      customerId: customer ? customer.id : payload.customerId,
+      customerName: customer ? customer.fullName : 'Customer',
+      customerMobile: customer ? customer.mobile : '',
+      productId: payload.productId,
+      productName: isRecharge ? (payload.productName || 'Customer Wallet Recharge (₹1,000)') : payload.productName,
+      barcode: payload.barcode,
+      productImage: payload.productImage,
+      amount: payload.amount,
+      paymentMethod: payload.paymentMethod || 'UPI',
+      paymentStatus: 'SUCCESS',
+      transactionRef: txRef,
+      auditorConfirmationStatus: isRecharge ? 'CONFIRMED' : 'PENDING',
+      confirmedBy: isRecharge ? 'SYSTEM (Auto-Approved)' : undefined,
+      confirmedAt: isRecharge ? nowIso : undefined,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      paymentType: isRecharge ? 'WALLET_RECHARGE' : 'PRODUCT_PAYMENT',
+      isWalletRecharge: isRecharge,
+      walletCredited: isRecharge,
+    };
+
+    this.db.pantryPayments.unshift(payment);
+
+    if (isRecharge && customer) {
+      const prevBal = customer.walletBalance ?? 1000;
+      const newBal = prevBal + payload.amount;
+      customer.walletBalance = newBal;
+      customer.updatedAt = today;
+
+      if (!this.db.walletTransactions) this.db.walletTransactions = [];
+      this.db.walletTransactions.unshift({
+        id: `WTX-${Date.now().toString().slice(-6)}`,
+        customerId: customer.id,
+        customerName: customer.fullName,
+        transactionType: 'PANTRY_PAY_RECHARGE',
+        amount: payload.amount,
+        previousBalance: prevBal,
+        newBalance: newBal,
+        referenceId: payId,
+        userId: 'SYSTEM',
+        role: 'ADMIN',
+        reason: `Pantry Pay ₹${payload.amount} Wallet Recharge - Auto Approved`,
+        date: today,
+        time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        timestamp: nowIso,
+        status: 'SUCCESS',
+      });
+    } else if (customer && payload.quantity) {
+      // Reduce item quantity in pantry card
+      const pci = this.db.pantryCardItems.find(
+        (p) => p.customerId === customer.id && (p.productId === payload.productId || p.barcode === payload.barcode) && (p.quantity || 0) > 0
+      );
+      if (pci) {
+        pci.quantity = Math.max(0, (pci.quantity || 0) - (payload.quantity || 1));
+        if (pci.quantity === 0) pci.status = 'CONSUMED_AND_PAID';
+        pci.updatedAt = today;
+      }
+    }
+
+    this.saveDb();
+    return payment;
+  }
+
+  public getAllPantryPayments(): PantryPayment[] {
+    return this.db.pantryPayments || [];
+  }
+
+  public getCustomerPantryPayments(customerId: string): PantryPayment[] {
+    return (this.db.pantryPayments || []).filter((p) => p.customerId === customerId);
+  }
+
+  public getPantryPaymentById(paymentId: string): PantryPayment {
+    const p = (this.db.pantryPayments || []).find((x) => x.id === paymentId);
+    if (!p) throw new Error(`Pantry payment ${paymentId} not found`);
+    return p;
+  }
+
+  public confirmPantryPayment(paymentId: string, remarks?: string): PantryPayment {
+    if (!this.db.pantryPayments) this.db.pantryPayments = [];
+    const p = this.db.pantryPayments.find((x) => x.id === paymentId);
+    if (!p) throw new Error(`Pantry payment ${paymentId} not found`);
+
+    const nowIso = new Date().toISOString();
+    p.auditorConfirmationStatus = 'CONFIRMED';
+    p.confirmedBy = 'Field Auditor / Admin';
+    p.confirmedAt = nowIso;
+    p.updatedAt = nowIso;
+    if (remarks) (p as any).auditorRemarks = remarks;
+
+    this.saveDb();
+    return p;
+  }
+
+  public rejectPantryPayment(paymentId: string, reason?: string): PantryPayment {
+    if (!this.db.pantryPayments) this.db.pantryPayments = [];
+    const p = this.db.pantryPayments.find((x) => x.id === paymentId);
+    if (!p) throw new Error(`Pantry payment ${paymentId} not found`);
+
+    const nowIso = new Date().toISOString();
+    p.auditorConfirmationStatus = 'REJECTED';
+    p.rejectionReason = reason;
+    p.updatedAt = nowIso;
+
+    this.saveDb();
+    return p;
+  }
 }
 
 export const clientStore = new ClientStoreService();
